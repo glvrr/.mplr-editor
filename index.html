@@ -957,7 +957,18 @@ function setStatus(msg) {
 // ═══════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════
-initDefault();
+(function boot() {
+  state.presetName = 'New Preset';
+  state.rows = 4;
+  state.cols = 5;
+  state.encoders = 1;
+  const total = state.rows * state.cols - state.encoders;
+  state.layers = [makeEmptyLayer('Layer 0', total, 1)];
+  state.currentLayer = 0;
+  state.selectedKey = null;
+  syncInputs();
+  render();
+})();
 </script>
 </body>
 </html>
