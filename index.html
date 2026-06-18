@@ -171,6 +171,9 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 }
 .key-btn:hover { border-color: var(--fg); }
 .key-btn.selected { border-color: var(--fg); background: #1a1a1a; }
+.key-btn.drag-over { border-color: var(--fg); background: #222; outline: 2px dashed var(--fg); outline-offset: -3px; }
+.key-btn[draggable="true"] { cursor: grab; }
+.key-btn.dragging { opacity: .35; }
 .key-btn.empty-key { opacity: .4; }
 .key-idx { color: var(--muted); font-size: 10px; }
 .key-name { font-weight: bold; font-size: 12px; }
@@ -589,6 +592,8 @@ function commitLayerName() {
   document.getElementById('layer-name-editor').style.display = 'none';
 }
 
+let dragSrcIdx = null;
+
 function renderGrid() {
   const layer = state.layers[state.currentLayer];
   const matrix = document.getElementById('key-matrix');
@@ -607,9 +612,54 @@ function renderGrid() {
     const name = action ? action[0] : 'Empty';
     const method = action ? (METHOD_LABELS[action[1]] || action[1]) : '';
     btn.innerHTML = `<span class="key-name">${name}</span><span class="key-idx">#${i} <span class="key-method">${method}</span></span>`;
+    btn.dataset.keyIdx = i;
+    btn.draggable = true;
+
     btn.onclick = () => selectKey('key', i);
+
+    // drag
+    btn.addEventListener('dragstart', e => {
+      dragSrcIdx = i;
+      btn.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    btn.addEventListener('dragend', () => {
+      dragSrcIdx = null;
+      document.querySelectorAll('.key-btn').forEach(b => {
+        b.classList.remove('dragging', 'drag-over');
+      });
+    });
+    btn.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (dragSrcIdx !== null && dragSrcIdx !== i)
+        btn.classList.add('drag-over');
+    });
+    btn.addEventListener('dragleave', () => btn.classList.remove('drag-over'));
+    btn.addEventListener('drop', e => {
+      e.preventDefault();
+      btn.classList.remove('drag-over');
+      if (dragSrcIdx === null || dragSrcIdx === i) return;
+      swapKeys(dragSrcIdx, i);
+    });
+
     matrix.appendChild(btn);
   }
+}
+
+function swapKeys(a, b) {
+  const layer = state.layers[state.currentLayer];
+  const tmp = layer.keys[a];
+  layer.keys[a] = layer.keys[b];
+  layer.keys[b] = tmp;
+  // update selection to follow the dragged key
+  if (state.selectedKey && state.selectedKey.type === 'key') {
+    if (state.selectedKey.id === a) state.selectedKey.id = b;
+    else if (state.selectedKey.id === b) state.selectedKey.id = a;
+  }
+  renderGrid();
+  updatePreview();
+  setStatus(`Swapped key #${a} ↔ #${b}`);
 }
 
 function renderEncoders() {
@@ -768,27 +818,22 @@ function onGridChange() {
   state.rows = parseInt(document.getElementById('cfg-rows').value) || 4;
   state.cols = parseInt(document.getElementById('cfg-cols').value) || 5;
   state.encoders = parseInt(document.getElementById('cfg-encs').value) || 0;
-  const total = state.rows * state.cols - state.encoders;
+  const total = state.rows * state.cols;
 
-  // Resize all layers
+  // Resize layers — NEVER delete existing data, just add missing slots.
+  // Keys and encoders outside current visible range are kept in memory.
   state.layers.forEach(layer => {
-    // Add missing keys
+    // Ensure all visible key slots exist (fill gaps, never remove)
     for (let i = 0; i < total; i++) {
       if (!(i in layer.keys)) layer.keys[i] = null;
     }
-    // Remove excess keys
-    Object.keys(layer.keys).forEach(k => {
-      if (parseInt(k) >= total) delete layer.keys[k];
-    });
-    // Rebuild encoders
-    const newEncoders = {};
+    // Ensure all visible encoder slots exist (keep any existing data)
     for (let e = 0; e < state.encoders; e++) {
       ['L','B','R'].forEach(dir => {
         const id = `EC${e}${dir}`;
-        newEncoders[id] = layer.encoders[id] || null;
+        if (!(id in layer.encoders)) layer.encoders[id] = null;
       });
     }
-    layer.encoders = newEncoders;
   });
 
   state.selectedKey = null;
