@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>MPLR Editor</title>
 <style>
 :root {
@@ -24,6 +25,9 @@ body {
   height: 100vh;
   overflow: hidden;
   font-size: 13px;
+}
+@media (max-width: 768px) {
+  body { height: auto; overflow: auto; overflow-x: hidden; }
 }
 
 /* ── FRAME CORNERS ── */
@@ -255,6 +259,19 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 .key-combo-item input { flex: 1; }
 .key-combo-item button { flex: 0 0 auto; padding: 8px 10px; }
 .add-key-btn { width: 100%; }
+.file-label-btn {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line-bright);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  transition: background .12s, color .12s, border-color .12s;
+  display: inline-flex;
+  align-items: center;
+}
+.file-label-btn:hover { border-color: var(--fg); }
 
 /* ── STATUS BAR ── */
 .statusbar {
@@ -270,6 +287,88 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 }
 .statusbar span { opacity: .6; }
 .statusbar .status-msg { font-weight: bold; opacity: 1; }
+
+/* ══════════════════════════════════════════
+   MOBILE LAYOUT  (≤ 768px)
+══════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Header: stack logo + stats */
+  .header {
+    height: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    margin: 8px 8px 0;
+  }
+  .logo { font-size: 22px; }
+  .logo span { display: none; }
+  .stats { gap: 20px; }
+  .stat .svalue { font-size: 20px; }
+
+  /* Main: single column, no fixed height */
+  .main {
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: 8px;
+    gap: 0;
+    padding-bottom: 60px; /* space for bottom nav */
+  }
+
+  /* Each panel: hide by default, show active */
+  .panel {
+    display: none;
+    overflow: visible;
+    padding: 12px;
+  }
+  .panel.mobile-active { display: block; }
+
+  /* Keys smaller on mobile */
+  :root { --key-h: 58px; }
+  .key-name { font-size: 11px; }
+
+  /* Bottom nav bar */
+  .mobile-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--bg);
+    border-top: 1px solid var(--fg);
+    z-index: 200;
+    height: 52px;
+  }
+  .mobile-nav button {
+    flex: 1;
+    border: none;
+    border-right: 1px solid var(--line);
+    font-size: 11px;
+    letter-spacing: .06em;
+    padding: 0;
+    height: 100%;
+    border-radius: 0;
+  }
+  .mobile-nav button:last-child { border-right: none; }
+  .mobile-nav button.active { background: var(--fg); color: var(--bg); font-weight: bold; }
+
+  /* Status bar moves up above nav */
+  .statusbar { bottom: 52px; font-size: 10px; padding: 3px 10px; }
+
+  /* Encoder row wraps on small screens */
+  .encoder-row { flex-wrap: wrap; }
+  .encoder-btn { min-width: 80px; }
+
+  /* Layer tabs scroll horizontally */
+  .layer-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+
+  /* Grid: make keys a bit taller for touch */
+  .key-btn { min-height: 52px; height: auto; padding: 10px 8px; }
+}
+
+/* Desktop: hide mobile nav */
+@media (min-width: 769px) {
+  .mobile-nav { display: none; }
+}
 </style>
 </head>
 <body>
@@ -291,9 +390,8 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
   <div class="panel frame" id="left-panel">
     <div class="toolbar">
       <button onclick="newFile()" title="New preset">NEW</button>
-      <button onclick="openFile()" title="Open .mplr file">OPEN</button>
+      <label for="file-input" class="file-label-btn" title="Open .mplr file">OPEN<input type="file" id="file-input" accept=".mplr,.txt" style="display:none" onchange="handleFileOpen(event)"></label>
       <button onclick="saveFile()" class="primary" title="Download .mplr file">SAVE</button>
-      <input type="file" id="file-input" accept=".mplr,.txt" style="display:none" onchange="handleFileOpen(event)">
     </div>
 
     <div class="section" id="sec-project">
@@ -795,7 +893,7 @@ function onActionChange() {} // live editing handled on APPLY
 // ═══════════════════════════════════════════
 function addLayer() {
   const name = `Layer ${state.layers.length}`;
-  const total = state.rows * state.cols - state.encoders;
+  const total = state.rows * state.cols;
   state.layers.push(makeEmptyLayer(name, total, state.encoders));
   state.currentLayer = state.layers.length - 1;
   render();
@@ -929,7 +1027,7 @@ function newFile() {
   state.rows = 4;
   state.cols = 5;
   state.encoders = 1;
-  const total = state.rows * state.cols - state.encoders;
+  const total = state.rows * state.cols;
   state.layers = [makeEmptyLayer('Layer 0', total, 1)];
   state.currentLayer = 0;
   state.selectedKey = null;
@@ -1073,13 +1171,63 @@ function setStatus(msg) {
   state.rows = 4;
   state.cols = 5;
   state.encoders = 1;
-  const total = state.rows * state.cols - state.encoders;
+  const total = state.rows * state.cols;
   state.layers = [makeEmptyLayer('Layer 0', total, 1)];
   state.currentLayer = 0;
   state.selectedKey = null;
   syncInputs();
   render();
+  initMobileLayout();
 })();
+
+// ═══════════════════════════════════════════
+//  MOBILE PANEL SWITCHING
+// ═══════════════════════════════════════════
+function isMobile() { return window.innerWidth <= 768; }
+
+function switchMobilePanel(panelId, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('mobile-active'));
+  document.getElementById(panelId).classList.add('mobile-active');
+  document.querySelectorAll('.mobile-nav button').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+function initMobileLayout() {
+  if (isMobile()) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('mobile-active'));
+    document.getElementById('center-panel').classList.add('mobile-active');
+    // mark GRID button active
+    const navBtns = document.querySelectorAll('.mobile-nav button');
+    navBtns.forEach(b => b.classList.remove('active'));
+    if (navBtns[1]) navBtns[1].classList.add('active');
+  }
+}
+
+window.addEventListener('resize', () => {
+  if (!isMobile()) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('mobile-active'));
+  } else {
+    initMobileLayout();
+  }
+});
+
+// Auto-switch to ACTION panel on mobile when key selected
+const _selectKeyOrig = selectKey;
+selectKey = function(type, id) {
+  _selectKeyOrig(type, id);
+  if (isMobile()) {
+    const actionBtn = document.querySelectorAll('.mobile-nav button')[2];
+    switchMobilePanel('right-panel', actionBtn);
+  }
+};
+
 </script>
+
+<div class="mobile-nav" id="mobile-nav">
+  <button onclick="switchMobilePanel('left-panel', this)">⚙ CONFIG</button>
+  <button onclick="switchMobilePanel('center-panel', this)" class="active">⌨ GRID</button>
+  <button onclick="switchMobilePanel('right-panel', this)">✎ ACTION</button>
+</div>
+
 </body>
 </html>
