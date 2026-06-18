@@ -202,6 +202,46 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 .enc-label { color: var(--muted); font-size: 10px; }
 .enc-name { font-weight: bold; }
 
+/* ── LAYER TOPBAR ── */
+.layer-topbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.layer-tabs { margin-bottom: 0; }
+.layer-name-edit-wrap {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--line-bright);
+  background: #0d0d0d;
+}
+.layer-name-edit-wrap::before {
+  content: "LAYER NAME";
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+.layer-name-input {
+  flex: 1;
+  border: none;
+  border-bottom: 1px solid var(--line-bright);
+  background: transparent;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: .04em;
+  padding: 4px 6px;
+}
+.layer-name-input:focus { border-bottom-color: var(--fg); outline: none; }
+.layer-name-ok {
+  padding: 4px 10px;
+  font-size: 13px;
+  border-color: var(--fg);
+}
+
 /* ── ACTION EDITOR ── */
 .key-combo-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .key-combo-item {
@@ -282,7 +322,13 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 
   <!-- ── CENTER PANEL ── -->
   <div class="panel frame" id="center-panel">
-    <div class="layer-tabs" id="layer-tabs"></div>
+    <div class="layer-topbar">
+      <div class="layer-tabs" id="layer-tabs"></div>
+      <div id="layer-name-editor" style="display:none" class="layer-name-edit-wrap">
+        <input id="layer-name-input" class="layer-name-input" placeholder="Layer name…" />
+        <button onclick="commitLayerName()" class="layer-name-ok">✓</button>
+      </div>
+    </div>
     <div class="grid-wrap">
       <div class="matrix" id="key-matrix"></div>
     </div>
@@ -369,7 +415,7 @@ let state = {
 // ═══════════════════════════════════════════
 function makeEmptyLayer(name, totalKeys, encoderCount) {
   const keys = {};
-  for (let i = 1; i <= totalKeys; i++) keys[i] = null;
+  for (let i = 0; i < totalKeys; i++) keys[i] = null;
   const encoders = {};
   for (let e = 0; e < encoderCount; e++) {
     encoders[`EC${e}L`] = null;
@@ -462,17 +508,10 @@ function renderLayerList() {
   state.layers.forEach((layer, idx) => {
     const row = document.createElement('div');
     row.className = 'layer-item';
-    row.style.flexDirection = 'column';
-    row.style.gap = '4px';
-
-    // Top row: select button + delete
-    const topRow = document.createElement('div');
-    topRow.style.cssText = 'display:flex;gap:6px;align-items:center';
 
     const btn = document.createElement('button');
-    btn.textContent = layer.name || `Layer${idx}`;
-    btn.style.flex = '1';
-    btn.style.textAlign = 'left';
+    btn.textContent = layer.name || `Layer ${idx}`;
+    btn.style.cssText = 'flex:1;text-align:left';
     if (idx === state.currentLayer) btn.classList.add('active');
     btn.onclick = () => { state.currentLayer = idx; state.selectedKey = null; render(); };
 
@@ -483,25 +522,8 @@ function renderLayerList() {
     del.title = 'Delete layer';
     del.onclick = (e) => { e.stopPropagation(); deleteLayer(idx); };
 
-    topRow.appendChild(btn);
-    topRow.appendChild(del);
-    row.appendChild(topRow);
-
-    // Name input — always visible for active layer
-    if (idx === state.currentLayer) {
-      const nameInp = document.createElement('input');
-      nameInp.value = layer.name || '';
-      nameInp.placeholder = 'Layer name…';
-      nameInp.style.cssText = 'font-size:11px;padding:6px 8px';
-      nameInp.oninput = () => {
-        state.layers[idx].name = nameInp.value;
-        btn.textContent = nameInp.value || `Layer${idx}`;
-        renderLayerTabs();
-        updatePreview();
-      };
-      row.appendChild(nameInp);
-    }
-
+    row.appendChild(btn);
+    row.appendChild(del);
     el.appendChild(row);
   });
 }
@@ -510,17 +532,61 @@ function renderLayerTabs() {
   const el = document.getElementById('layer-tabs');
   el.innerHTML = '';
   state.layers.forEach((layer, idx) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;gap:0;align-items:stretch';
+
     const btn = document.createElement('button');
     btn.className = 'tab' + (idx === state.currentLayer ? ' active' : '');
-    btn.textContent = (layer.name || `LAYER${idx}`).toUpperCase();
+    btn.style.cssText = idx === state.currentLayer ? 'border-right:none' : '';
+    btn.textContent = (layer.name || `Layer ${idx}`).toUpperCase();
     btn.onclick = () => { state.currentLayer = idx; state.selectedKey = null; render(); };
-    el.appendChild(btn);
+
+    wrap.appendChild(btn);
+
+    if (idx === state.currentLayer) {
+      const editBtn = document.createElement('button');
+      editBtn.className = 'tab active';
+      editBtn.textContent = '✎';
+      editBtn.style.cssText = 'padding:8px 10px;border-left:1px solid var(--line);font-size:12px';
+      editBtn.title = 'Rename layer';
+      editBtn.onclick = () => openLayerNameEditor(idx);
+      wrap.appendChild(editBtn);
+    }
+
+    el.appendChild(wrap);
   });
   const add = document.createElement('button');
   add.className = 'tab';
   add.textContent = '+';
   add.onclick = addLayer;
   el.appendChild(add);
+}
+
+function openLayerNameEditor(idx) {
+  const wrap = document.getElementById('layer-name-editor');
+  const inp = document.getElementById('layer-name-input');
+  inp.value = state.layers[idx].name || '';
+  wrap.style.display = 'flex';
+  inp.focus();
+  inp.select();
+  inp.dataset.layerIdx = idx;
+  inp.onkeydown = (e) => {
+    if (e.key === 'Enter') commitLayerName();
+    if (e.key === 'Escape') wrap.style.display = 'none';
+  };
+}
+
+function commitLayerName() {
+  const inp = document.getElementById('layer-name-input');
+  const idx = parseInt(inp.dataset.layerIdx);
+  const val = inp.value.trim();
+  if (val && !isNaN(idx)) {
+    state.layers[idx].name = val;
+    renderLayerList();
+    renderLayerTabs();
+    updatePreview();
+  }
+  document.getElementById('layer-name-editor').style.display = 'none';
 }
 
 function renderGrid() {
@@ -530,8 +596,8 @@ function renderGrid() {
   matrix.innerHTML = '';
   if (!layer) return;
 
-  const total = state.rows * state.cols - state.encoders;
-  for (let i = 1; i <= total; i++) {
+  const total = state.rows * state.cols;
+  for (let i = 0; i < total; i++) {
     const action = layer.keys[i];
     const btn = document.createElement('button');
     btn.className = 'key-btn' + (!action ? ' empty-key' : '');
@@ -707,12 +773,12 @@ function onGridChange() {
   // Resize all layers
   state.layers.forEach(layer => {
     // Add missing keys
-    for (let i = 1; i <= total; i++) {
+    for (let i = 0; i < total; i++) {
       if (!(i in layer.keys)) layer.keys[i] = null;
     }
     // Remove excess keys
     Object.keys(layer.keys).forEach(k => {
-      if (parseInt(k) > total) delete layer.keys[k];
+      if (parseInt(k) >= total) delete layer.keys[k];
     });
     // Rebuild encoders
     const newEncoders = {};
@@ -784,8 +850,8 @@ function serializeMplr() {
       const action = layer.keys[k];
       if (!action) return;
       const parts = action.map(p => `"${p}"`).join(', ');
-      const pad = String(k).padStart(12);
-      lines.push(`        ${pad}: [${parts}],`);
+      const kStr = String(k).padStart(12);
+      lines.push(`        ${kStr}: [${parts}],`);
     });
 
     const encKeys = Object.keys(layer.encoders);
@@ -922,7 +988,7 @@ function parseMplr(text) {
 
   // Normalize keys: ensure all keys 1..total exist
   state.layers.forEach(layer => {
-    for (let i = 1; i <= total; i++) {
+    for (let i = 0; i < total; i++) {
       if (!(i in layer.keys)) layer.keys[i] = null;
     }
     // Normalize encoders
