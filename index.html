@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MPLR Editor</title>
+<style>
+:root {
+  --fg: #f2f2f2;
+  --muted: #8c8c8c;
+  --line: #3a3a3a;
+  --line-bright: #5a5a5a;
+  --bg: #0a0a0a;
+  --bg2: #111;
+  --accent: #f2f2f2;
+  --active-bg: #fff;
+  --active-fg: #000;
+  --key-h: 72px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "JetBrains Mono", "Consolas", monospace;
+  height: 100vh;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+/* ── FRAME CORNERS ── */
+.frame {
+  border: 1px solid var(--fg);
+  position: relative;
+}
+.frame::before, .frame::after {
+  content: "";
+  position: absolute;
+  background: var(--bg);
+  z-index: 1;
+}
+.frame::before { top: -1px; left: 10px; width: 16px; height: 3px; }
+.frame::after  { bottom: -1px; right: 10px; width: 16px; height: 3px; }
+
+/* ── HEADER ── */
+.header {
+  margin: 10px 10px 0;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 80px;
+}
+.logo { font-size: 30px; font-weight: 700; letter-spacing: .1em; }
+.logo span { color: var(--muted); font-size: 13px; font-weight: 400; margin-left: 14px; letter-spacing: 0; }
+.stats { display: flex; gap: 36px; }
+.stat .slabel { color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+.stat .svalue { font-size: 28px; font-weight: bold; line-height: 1; }
+
+/* ── LAYOUT ── */
+.main {
+  display: grid;
+  grid-template-columns: 260px 1fr 340px;
+  gap: 10px;
+  padding: 10px;
+  height: calc(100vh - 90px);
+}
+.panel { overflow: auto; padding: 14px; }
+
+/* ── COLLAPSIBLE SECTION ── */
+.section { border: 1px solid var(--line); margin-bottom: 10px; }
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-weight: bold;
+  font-size: 11px;
+  letter-spacing: .08em;
+  cursor: pointer;
+  user-select: none;
+  color: var(--muted);
+}
+.section-header:hover { color: var(--fg); }
+.section-header .toggle-icon {
+  transition: transform .2s;
+  font-style: normal;
+  font-size: 10px;
+}
+.section.collapsed .toggle-icon { transform: rotate(180deg); }
+.section.collapsed .section-body { display: none; }
+.section-body { padding: 12px; }
+
+/* ── INPUTS ── */
+.flabel { color: var(--muted); font-size: 11px; margin: 10px 0 4px; }
+.flabel:first-child { margin-top: 0; }
+input, select, textarea {
+  width: 100%;
+  background: #050505;
+  color: var(--fg);
+  border: 1px solid var(--line-bright);
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--fg); }
+select option { background: #111; }
+
+/* ── BUTTONS ── */
+button {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line-bright);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  transition: background .12s, color .12s, border-color .12s;
+}
+button:hover { border-color: var(--fg); }
+button.active, button.tab.active {
+  background: var(--active-bg);
+  color: var(--active-fg);
+  border-color: var(--active-bg);
+  font-weight: bold;
+}
+button.danger { border-color: #c0392b; color: #c0392b; }
+button.danger:hover { background: #c0392b; color: #fff; }
+button.primary { border-color: var(--fg); }
+button.primary:hover { background: var(--fg); color: var(--bg); }
+
+/* ── TOOLBAR ── */
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+
+/* ── LAYER LIST ── */
+.layer-item {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.layer-item button { flex: 1; text-align: left; }
+.layer-item .del-btn { flex: 0 0 auto; padding: 8px 10px; }
+
+/* ── LAYER TABS ── */
+.layer-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.layer-tabs button { font-size: 11px; letter-spacing: .06em; }
+
+/* ── KEY GRID ── */
+.grid-wrap {
+  border: 1px solid var(--line);
+  padding: 14px;
+  background-image:
+    linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.matrix { display: grid; gap: 6px; }
+.key-btn {
+  height: var(--key-h);
+  text-align: left;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-color: var(--line-bright);
+  transition: background .1s, border-color .1s;
+}
+.key-btn:hover { border-color: var(--fg); }
+.key-btn.selected { border-color: var(--fg); background: #1a1a1a; }
+.key-btn.empty-key { opacity: .4; }
+.key-idx { color: var(--muted); font-size: 10px; }
+.key-name { font-weight: bold; font-size: 12px; }
+.key-method { color: var(--muted); font-size: 10px; }
+
+/* ── ENCODER ROW ── */
+.encoder-section { margin-top: 12px; }
+.encoder-label {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .08em;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+.encoder-row { display: flex; gap: 6px; }
+.encoder-btn {
+  flex: 1;
+  text-align: left;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-color: var(--line-bright);
+}
+.encoder-btn.selected { border-color: var(--fg); background: #1a1a1a; }
+.enc-label { color: var(--muted); font-size: 10px; }
+.enc-name { font-weight: bold; }
+
+/* ── ACTION EDITOR ── */
+.key-combo-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.key-combo-item {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.key-combo-item input { flex: 1; }
+.key-combo-item button { flex: 0 0 auto; padding: 8px 10px; }
+.add-key-btn { width: 100%; }
+
+/* ── STATUS BAR ── */
+.statusbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 11px;
+  padding: 4px 14px;
+  display: flex;
+  gap: 20px;
+  z-index: 100;
+}
+.statusbar span { opacity: .6; }
+.statusbar .status-msg { font-weight: bold; opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="header frame">
+  <div>
+    <div class="logo">MPLR EDITOR <span>&gt; macro pad layout editor</span></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="slabel">PRESET</div><div class="svalue" id="stat-preset">—</div></div>
+    <div class="stat"><div class="slabel">LAYERS</div><div class="svalue" id="stat-layers">0</div></div>
+    <div class="stat"><div class="slabel">KEYS</div><div class="svalue" id="stat-keys">0</div></div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ── LEFT PANEL ── -->
+  <div class="panel frame" id="left-panel">
+    <div class="toolbar">
+      <button onclick="newFile()" title="New preset">NEW</button>
+      <button onclick="openFile()" title="Open .mplr file">OPEN</button>
+      <button onclick="saveFile()" class="primary" title="Download .mplr file">SAVE</button>
+      <input type="file" id="file-input" accept=".mplr,.txt" style="display:none" onchange="handleFileOpen(event)">
+    </div>
+
+    <div class="section" id="sec-project">
+      <div class="section-header" onclick="toggleSection('sec-project')">
+        PROJECT <i class="toggle-icon">▲</i>
+      </div>
+      <div class="section-body">
+        <div class="flabel">Preset name</div>
+        <input id="preset-name" value="Photoshop" oninput="onPresetNameChange()">
+        <div class="flabel">Rows</div>
+        <input id="cfg-rows" type="number" min="1" max="10" value="4" oninput="onGridChange()">
+        <div class="flabel">Columns</div>
+        <input id="cfg-cols" type="number" min="1" max="10" value="5" oninput="onGridChange()">
+        <div class="flabel">Encoders</div>
+        <input id="cfg-encs" type="number" min="0" max="16" value="1" oninput="onGridChange()">
+      </div>
+    </div>
+
+    <div class="section" id="sec-layers">
+      <div class="section-header" onclick="toggleSection('sec-layers')">
+        LAYERS <i class="toggle-icon">▲</i>
+      </div>
+      <div class="section-body">
+        <div id="layer-list"></div>
+        <button style="width:100%;margin-top:4px" onclick="addLayer()">+ Add layer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CENTER PANEL ── -->
+  <div class="panel frame" id="center-panel">
+    <div class="layer-tabs" id="layer-tabs"></div>
+    <div class="grid-wrap">
+      <div class="matrix" id="key-matrix"></div>
+    </div>
+    <div class="encoder-section" id="encoder-section"></div>
+  </div>
+
+  <!-- ── RIGHT PANEL ── -->
+  <div class="panel frame" id="right-panel">
+    <div class="section" id="sec-action">
+      <div class="section-header" onclick="toggleSection('sec-action')">
+        ACTION EDITOR <i class="toggle-icon">▲</i>
+      </div>
+      <div class="section-body">
+        <div id="no-selection" style="color:var(--muted);font-size:12px;padding:8px 0">
+          ← Select a key or encoder to edit
+        </div>
+        <div id="action-form" style="display:none">
+          <div class="flabel">Name</div>
+          <input id="act-name" placeholder="Action name" oninput="onActionChange()">
+
+          <div class="flabel">Input method</div>
+          <select id="act-method" onchange="onActionChange()">
+            <option value="p">PRESS / RELEASE</option>
+            <option value="s">SEND</option>
+            <option value="m">Mouse</option>
+            <option value="c">Consumer Control</option>
+            <option value="i">On-board / Function</option>
+            <option value="d">Ducky</option>
+          </select>
+
+          <div class="flabel">Key sequence</div>
+          <div class="key-combo-list" id="key-combo-list"></div>
+          <button class="add-key-btn" onclick="addKeyToCombo()">+ Add key</button>
+
+          <button style="width:100%;margin-top:14px" class="primary" onclick="applyAction()">APPLY</button>
+          <button style="width:100%;margin-top:6px" class="danger" onclick="clearAction()">CLEAR KEY</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="sec-preview">
+      <div class="section-header" onclick="toggleSection('sec-preview')">
+        OUTPUT PREVIEW <i class="toggle-icon">▲</i>
+      </div>
+      <div class="section-body">
+        <textarea id="preview-out" rows="18" readonly style="font-size:11px;resize:none;color:var(--muted)"></textarea>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="statusbar">
+  <span class="status-msg" id="status-msg">Ready</span>
+  <span>|</span>
+  <span id="status-sel">No selection</span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+const METHOD_LABELS = {
+  p: 'PRESS',
+  s: 'SEND',
+  m: 'Mouse',
+  c: 'Consumer',
+  i: 'Function',
+  d: 'Ducky'
+};
+
+let state = {
+  presetName: 'Photoshop',
+  rows: 4,
+  cols: 5,
+  encoders: 1,
+  currentLayer: 0,
+  selectedKey: null,   // { type: 'key'|'encoder', id: number|string }
+  layers: []
+};
+
+// ═══════════════════════════════════════════
+//  INIT WITH EXAMPLE DATA
+// ═══════════════════════════════════════════
+function makeEmptyLayer(name, totalKeys, encoderCount) {
+  const keys = {};
+  for (let i = 1; i <= totalKeys; i++) keys[i] = null;
+  const encoders = {};
+  for (let e = 0; e < encoderCount; e++) {
+    encoders[`EC${e}L`] = null;
+    encoders[`EC${e}B`] = null;
+    encoders[`EC${e}R`] = null;
+  }
+  return { name, keys, encoders };
+}
+
+function initDefault() {
+  state.presetName = 'Photoshop';
+  state.rows = 4; state.cols = 5; state.encoders = 1;
+  const total = state.rows * state.cols - 1; // 19 keys
+
+  const drawing = makeEmptyLayer('Drawing', total, 1);
+  const drawData = {
+    1: ["New Window","p","F1"], 2: ["Fit screen","p","CONTROL","ZERO"],
+    3: ["100%","p","CONTROL","ONE"], 4: ["Flip Horz.","p","CONTROL","F"],
+    5: ["Color Switch","p","X"], 6: ["Brush Menu","p","F5"],
+    7: ["New Layer","p","CONTROL","SHIFT","ALT","N"], 8: ["Undo","p","CONTROL","Z"],
+    9: ["Redo","p","CONTROL","SHIFT","Z"], 10: ["Shift","p","SHIFT"],
+    11: ["Reset Colors","p","D"], 12: ["Clear mode","p","GRAVE_ACCENT"],
+    13: ["Brush","p","B"], 14: ["Eraser","p","E"], 15: ["FN","i"],
+    16: ["CTRL","p","CONTROL"], 17: ["Picker","p","ALT"],
+    18: ["Hand","p","SPACE"], 19: ["Transform","p","CONTROL","T"]
+  };
+  const drawEnc = {
+    "EC0L": ["Brush -","s","LEFT_BRACKET"],
+    "EC0R": ["Brush +","s","RIGHT_BRACKET"],
+    "EC0B": ["Undo","s","CONTROL","Z"]
+  };
+  for (const [k,v] of Object.entries(drawData)) drawing.keys[k] = v;
+  for (const [k,v] of Object.entries(drawEnc)) drawing.encoders[k] = v;
+
+  const nav = makeEmptyLayer('Navigation', total, 1);
+  const navData = {
+    1:["New Window","p","F1"], 2:["Fit screen","p","CONTROL","ZERO"],
+    3:["100%","p","CONTROL","ONE"], 4:["Flip Horz.","p","CONTROL","F"],
+    5:["New Window","p","F1"], 6:["Brush Menu","p","F5"],
+    7:["Brush Menu","p","F5"], 8:["New Layer","p","CONTROL","SHIFT","ALT","N"],
+    9:["Rotate","p","R"], 10:["Shift","p","SHIFT"],
+    11:["Fit screen","p","CONTROL","ZERO"], 12:["100%","p","CONTROL","ONE"],
+    13:["Flip Horz.","p","CONTROL","F"], 14:["All Visible","p","CONTROL","SHIFT","ALT","E"],
+    15:["Rotate","p","R"], 16:["New Window","p","F1"],
+    17:["Picker","p","ALT"], 18:["Hand","p","SPACE"], 19:["Hand","p","SPACE"]
+  };
+  const navEnc = {
+    "EC0L":["Zoom Out","s","CONTROL","MINUS"],
+    "EC0R":["Zoom In","s","CONTROL","KEYPAD_PLUS"],
+    "EC0B":["Merge Down","s","CONTROL","E"]
+  };
+  for (const [k,v] of Object.entries(navData)) nav.keys[k] = v;
+  for (const [k,v] of Object.entries(navEnc)) nav.encoders[k] = v;
+
+  state.layers = [drawing, nav];
+  state.currentLayer = 0;
+  syncInputs();
+  render();
+}
+
+// ═══════════════════════════════════════════
+//  COLLAPSIBLE SECTIONS
+// ═══════════════════════════════════════════
+function toggleSection(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+}
+
+// ═══════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════
+function render() {
+  renderStats();
+  renderLayerList();
+  renderLayerTabs();
+  renderGrid();
+  renderEncoders();
+  updatePreview();
+  if (state.selectedKey) renderActionForm();
+}
+
+function renderStats() {
+  document.getElementById('stat-preset').textContent = state.presetName || '—';
+  document.getElementById('stat-layers').textContent = state.layers.length;
+  document.getElementById('stat-keys').textContent = state.rows * state.cols;
+}
+
+function renderLayerList() {
+  const el = document.getElementById('layer-list');
+  el.innerHTML = '';
+  state.layers.forEach((layer, idx) => {
+    const row = document.createElement('div');
+    row.className = 'layer-item';
+    row.style.flexDirection = 'column';
+    row.style.gap = '4px';
+
+    // Top row: select button + delete
+    const topRow = document.createElement('div');
+    topRow.style.cssText = 'display:flex;gap:6px;align-items:center';
+
+    const btn = document.createElement('button');
+    btn.textContent = layer.name || `Layer${idx}`;
+    btn.style.flex = '1';
+    btn.style.textAlign = 'left';
+    if (idx === state.currentLayer) btn.classList.add('active');
+    btn.onclick = () => { state.currentLayer = idx; state.selectedKey = null; render(); };
+
+    const del = document.createElement('button');
+    del.textContent = '✕';
+    del.className = 'del-btn danger';
+    del.style.cssText = 'flex:0 0 auto;padding:8px 10px';
+    del.title = 'Delete layer';
+    del.onclick = (e) => { e.stopPropagation(); deleteLayer(idx); };
+
+    topRow.appendChild(btn);
+    topRow.appendChild(del);
+    row.appendChild(topRow);
+
+    // Name input — always visible for active layer
+    if (idx === state.currentLayer) {
+      const nameInp = document.createElement('input');
+      nameInp.value = layer.name || '';
+      nameInp.placeholder = 'Layer name…';
+      nameInp.style.cssText = 'font-size:11px;padding:6px 8px';
+      nameInp.oninput = () => {
+        state.layers[idx].name = nameInp.value;
+        btn.textContent = nameInp.value || `Layer${idx}`;
+        renderLayerTabs();
+        updatePreview();
+      };
+      row.appendChild(nameInp);
+    }
+
+    el.appendChild(row);
+  });
+}
+
+function renderLayerTabs() {
+  const el = document.getElementById('layer-tabs');
+  el.innerHTML = '';
+  state.layers.forEach((layer, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (idx === state.currentLayer ? ' active' : '');
+    btn.textContent = (layer.name || `LAYER${idx}`).toUpperCase();
+    btn.onclick = () => { state.currentLayer = idx; state.selectedKey = null; render(); };
+    el.appendChild(btn);
+  });
+  const add = document.createElement('button');
+  add.className = 'tab';
+  add.textContent = '+';
+  add.onclick = addLayer;
+  el.appendChild(add);
+}
+
+function renderGrid() {
+  const layer = state.layers[state.currentLayer];
+  const matrix = document.getElementById('key-matrix');
+  matrix.style.gridTemplateColumns = `repeat(${state.cols}, 1fr)`;
+  matrix.innerHTML = '';
+  if (!layer) return;
+
+  const total = state.rows * state.cols - state.encoders;
+  for (let i = 1; i <= total; i++) {
+    const action = layer.keys[i];
+    const btn = document.createElement('button');
+    btn.className = 'key-btn' + (!action ? ' empty-key' : '');
+    if (state.selectedKey && state.selectedKey.type === 'key' && state.selectedKey.id === i)
+      btn.classList.add('selected');
+
+    const name = action ? action[0] : 'Empty';
+    const method = action ? (METHOD_LABELS[action[1]] || action[1]) : '';
+    btn.innerHTML = `<span class="key-name">${name}</span><span class="key-idx">#${i} <span class="key-method">${method}</span></span>`;
+    btn.onclick = () => selectKey('key', i);
+    matrix.appendChild(btn);
+  }
+}
+
+function renderEncoders() {
+  const layer = state.layers[state.currentLayer];
+  const sec = document.getElementById('encoder-section');
+  sec.innerHTML = '';
+  if (!layer || state.encoders === 0) return;
+
+  for (let e = 0; e < state.encoders; e++) {
+    const label = document.createElement('div');
+    label.className = 'encoder-label';
+    label.textContent = `ENCODER ${e}`;
+    sec.appendChild(label);
+
+    const row = document.createElement('div');
+    row.className = 'encoder-row';
+
+    ['L','B','R'].forEach(dir => {
+      const id = `EC${e}${dir}`;
+      const action = layer.encoders[id];
+      const dirLabels = { L: '◀ LEFT', B: '● PRESS', R: '▶ RIGHT' };
+      const btn = document.createElement('button');
+      btn.className = 'encoder-btn' + (!action ? ' empty-key' : '');
+      if (state.selectedKey && state.selectedKey.type === 'encoder' && state.selectedKey.id === id)
+        btn.classList.add('selected');
+
+      const name = action ? action[0] : 'Empty';
+      const method = action ? (METHOD_LABELS[action[1]] || action[1]) : '';
+      btn.innerHTML = `<span class="enc-label">${dirLabels[dir]}</span><span class="enc-name">${name}</span><span class="key-method">${method}</span>`;
+      btn.onclick = () => selectKey('encoder', id);
+      row.appendChild(btn);
+    });
+
+    sec.appendChild(row);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  SELECTION & ACTION EDITOR
+// ═══════════════════════════════════════════
+function selectKey(type, id) {
+  state.selectedKey = { type, id };
+  renderGrid();
+  renderEncoders();
+  renderActionForm();
+
+  const layer = state.layers[state.currentLayer];
+  const action = type === 'key' ? layer.keys[id] : layer.encoders[id];
+  const label = type === 'key' ? `Key #${id}` : id;
+  document.getElementById('status-sel').textContent = `${label} · Layer: ${layer.name}`;
+}
+
+function renderActionForm() {
+  document.getElementById('no-selection').style.display = 'none';
+  document.getElementById('action-form').style.display = 'block';
+
+  const layer = state.layers[state.currentLayer];
+  if (!layer || !state.selectedKey) return;
+
+  const action = state.selectedKey.type === 'key'
+    ? layer.keys[state.selectedKey.id]
+    : layer.encoders[state.selectedKey.id];
+
+  document.getElementById('act-name').value = action ? action[0] : '';
+  document.getElementById('act-method').value = action ? action[1] : 'p';
+
+  const keys = action ? action.slice(2) : [];
+  renderKeyCombo(keys);
+}
+
+function renderKeyCombo(keys) {
+  const list = document.getElementById('key-combo-list');
+  list.innerHTML = '';
+  keys.forEach((k, idx) => {
+    const row = document.createElement('div');
+    row.className = 'key-combo-item';
+    const inp = document.createElement('input');
+    inp.value = k;
+    inp.placeholder = 'e.g. CONTROL';
+    inp.dataset.idx = idx;
+    const del = document.createElement('button');
+    del.textContent = '✕';
+    del.onclick = () => {
+      const current = getComboKeys();
+      current.splice(idx, 1);
+      renderKeyCombo(current);
+    };
+    row.appendChild(inp); row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+function getComboKeys() {
+  return [...document.querySelectorAll('#key-combo-list input')].map(i => i.value.trim()).filter(Boolean);
+}
+
+function addKeyToCombo() {
+  const current = getComboKeys();
+  current.push('');
+  renderKeyCombo(current);
+}
+
+function applyAction() {
+  if (!state.selectedKey) return;
+  const name = document.getElementById('act-name').value.trim();
+  const method = document.getElementById('act-method').value;
+  const keys = getComboKeys();
+
+  if (!name) { setStatus('Action name is required'); return; }
+
+  const action = [name, method, ...keys];
+  const layer = state.layers[state.currentLayer];
+  if (state.selectedKey.type === 'key') layer.keys[state.selectedKey.id] = action;
+  else layer.encoders[state.selectedKey.id] = action;
+
+  render();
+  setStatus(`Applied: ${name}`);
+}
+
+function clearAction() {
+  if (!state.selectedKey) return;
+  const layer = state.layers[state.currentLayer];
+  if (state.selectedKey.type === 'key') layer.keys[state.selectedKey.id] = null;
+  else layer.encoders[state.selectedKey.id] = null;
+  render();
+  setStatus('Key cleared');
+}
+
+function onActionChange() {} // live editing handled on APPLY
+
+// ═══════════════════════════════════════════
+//  LAYER MANAGEMENT
+// ═══════════════════════════════════════════
+function addLayer() {
+  const name = `Layer ${state.layers.length}`;
+  const total = state.rows * state.cols - state.encoders;
+  state.layers.push(makeEmptyLayer(name, total, state.encoders));
+  state.currentLayer = state.layers.length - 1;
+  render();
+  setStatus(`Added layer: ${name}`);
+}
+
+function deleteLayer(idx) {
+  if (state.layers.length <= 1) { setStatus('Cannot delete last layer'); return; }
+  state.layers.splice(idx, 1);
+  if (state.currentLayer >= state.layers.length) state.currentLayer = state.layers.length - 1;
+  state.selectedKey = null;
+  render();
+  setStatus('Layer deleted');
+}
+
+// ═══════════════════════════════════════════
+//  GRID CONFIG CHANGES
+// ═══════════════════════════════════════════
+function onGridChange() {
+  state.rows = parseInt(document.getElementById('cfg-rows').value) || 4;
+  state.cols = parseInt(document.getElementById('cfg-cols').value) || 5;
+  state.encoders = parseInt(document.getElementById('cfg-encs').value) || 0;
+  const total = state.rows * state.cols - state.encoders;
+
+  // Resize all layers
+  state.layers.forEach(layer => {
+    // Add missing keys
+    for (let i = 1; i <= total; i++) {
+      if (!(i in layer.keys)) layer.keys[i] = null;
+    }
+    // Remove excess keys
+    Object.keys(layer.keys).forEach(k => {
+      if (parseInt(k) > total) delete layer.keys[k];
+    });
+    // Rebuild encoders
+    const newEncoders = {};
+    for (let e = 0; e < state.encoders; e++) {
+      ['L','B','R'].forEach(dir => {
+        const id = `EC${e}${dir}`;
+        newEncoders[id] = layer.encoders[id] || null;
+      });
+    }
+    layer.encoders = newEncoders;
+  });
+
+  state.selectedKey = null;
+  render();
+}
+
+function onPresetNameChange() {
+  state.presetName = document.getElementById('preset-name').value;
+  renderStats();
+  updatePreview();
+}
+
+function syncInputs() {
+  document.getElementById('preset-name').value = state.presetName;
+  document.getElementById('cfg-rows').value = state.rows;
+  document.getElementById('cfg-cols').value = state.cols;
+  document.getElementById('cfg-encs').value = state.encoders;
+}
+
+// ═══════════════════════════════════════════
+//  FILE SERIALISATION
+// ═══════════════════════════════════════════
+function serializeMplr() {
+  const lines = [];
+  lines.push('# manipylyator .mplr-file');
+  lines.push('');
+  lines.push('"""');
+  lines.push('Hardware syntax:');
+  lines.push('    Keys - int');
+  lines.push('    Buttons -  string "B" + index');
+  lines.push('    Encoders - string "EC" + index, for mapping using suffixes: L-left, R-right, B-button');
+  lines.push('Examples:');
+  lines.push('        Key -       0: ["Key", "p", "K", "E", "Y"],');
+  lines.push('        Button -   "B0": ["Button", "s", "B", "U", "T", "T", "O", "N"],');
+  lines.push('        Encoder -  "EC0L": ["Left", "s", "L", "E", "F", "T"],');
+  lines.push('');
+  lines.push('For imput methods and devices:');
+  lines.push('    p -> PRESS/RELEASE');
+  lines.push('    s -> SEND');
+  lines.push('    m -> Mouse');
+  lines.push('    c -> Consumer Control');
+  lines.push('    i -> On board navigation or funk');
+  lines.push('    d -> ducky');
+  lines.push('Full comand syntax:');
+  lines.push('        "EC9999B":["Command name", "Input method or device", "PRESSED_KEY1", "PRESSED_KEY2", "PRESSED_KEY3"]');
+  lines.push('"""');
+  lines.push('');
+  lines.push('{');
+
+  const presetName = state.presetName || 'Preset';
+  lines.push(`"${presetName}": {`);
+
+  state.layers.forEach((layer, li) => {
+    lines.push(`    "Layer${li}": {`);
+    lines.push(`        "Layout": "${layer.name || `Layer${li}`}",`);
+
+    const keyNums = Object.keys(layer.keys).map(Number).sort((a,b)=>a-b);
+    keyNums.forEach(k => {
+      const action = layer.keys[k];
+      if (!action) return;
+      const parts = action.map(p => `"${p}"`).join(', ');
+      const pad = String(k).padStart(12);
+      lines.push(`        ${pad}: [${parts}],`);
+    });
+
+    const encKeys = Object.keys(layer.encoders);
+    const filledEncKeys = encKeys.filter(ek => layer.encoders[ek]);
+    filledEncKeys.forEach((ek, idx) => {
+      const action = layer.encoders[ek];
+      const parts = action.map(p => `"${p}"`).join(', ');
+      const comma = idx < filledEncKeys.length - 1 ? ',' : '';
+      lines.push(`        "${ek}": [${parts}]${comma}`);
+    });
+
+    lines.push(`        }${li < state.layers.length - 1 ? ',' : ''}`);
+  });
+
+  lines.push('    }');
+  lines.push('}');
+  return lines.join('\n');
+}
+
+function updatePreview() {
+  document.getElementById('preview-out').value = serializeMplr();
+}
+
+// ═══════════════════════════════════════════
+//  OPEN / SAVE
+// ═══════════════════════════════════════════
+function newFile() {
+  if (!confirm('Create new preset? Unsaved changes will be lost.')) return;
+  state.presetName = 'New Preset';
+  state.rows = 4;
+  state.cols = 5;
+  state.encoders = 1;
+  const total = state.rows * state.cols - state.encoders;
+  state.layers = [makeEmptyLayer('Layer 0', total, 1)];
+  state.currentLayer = 0;
+  state.selectedKey = null;
+  syncInputs();
+  render();
+  setStatus('New preset created');
+}
+
+function saveFile() {
+  const content = serializeMplr();
+  const name = (state.presetName || 'preset').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+  const blob = new Blob([content], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${name}.mplr`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setStatus(`Saved: ${name}.mplr`);
+}
+
+function openFile() {
+  document.getElementById('file-input').click();
+}
+
+function handleFileOpen(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      parseMplr(e.target.result);
+      setStatus(`Loaded: ${file.name}`);
+    } catch(err) {
+      setStatus(`Parse error: ${err.message}`);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function parseMplr(text) {
+  // Strip comments (lines starting with #) and docstring
+  let clean = text.replace(/^#.*$/gm, '');
+  // Remove the docstring block
+  clean = clean.replace(/"""[\s\S]*?"""/m, '');
+  // Remove Python-style trailing comments
+  clean = clean.replace(/#[^\n]*/g, '');
+  // Convert single-quoted strings to double-quoted
+  clean = clean.replace(/'/g, '"');
+  // Remove trailing commas before closing braces/brackets
+  clean = clean.replace(/,\s*([\]}])/g, '$1');
+  // Replace unquoted integer keys with quoted ones for JSON compatibility
+  // e.g. "     1: " -> "\"1\": "
+  clean = clean.replace(/^\s*(\d+)\s*:/gm, (m, k) => m.replace(k, `"${k}"`));
+
+  let parsed;
+  try {
+    parsed = JSON.parse(clean);
+  } catch(e) {
+    throw new Error('Could not parse file (invalid format). ' + e.message);
+  }
+
+  const presetName = Object.keys(parsed)[0];
+  const preset = parsed[presetName];
+
+  state.presetName = presetName;
+  state.layers = [];
+
+  let maxKey = 0;
+  let maxEnc = 0;
+
+  Object.keys(preset).forEach(layerKey => {
+    if (!layerKey.startsWith('Layer')) return;
+    const src = preset[layerKey];
+    const layer = { name: src['Layout'] || layerKey, keys: {}, encoders: {} };
+
+    Object.keys(src).forEach(k => {
+      if (k === 'Layout') return;
+      if (/^\d+$/.test(k)) {
+        const n = parseInt(k);
+        layer.keys[n] = src[k];
+        if (n > maxKey) maxKey = n;
+      } else if (/^EC\d+[LBR]$/.test(k)) {
+        layer.encoders[k] = src[k];
+        const encNum = parseInt(k.replace('EC',''));
+        if (encNum + 1 > maxEnc) maxEnc = encNum + 1;
+      }
+    });
+
+    state.layers.push(layer);
+  });
+
+  // Estimate grid
+  state.encoders = maxEnc;
+  const total = maxKey;
+  // Try to find rows/cols that fit
+  const guessedCols = 5;
+  const guessedRows = Math.ceil((total + maxEnc) / guessedCols);
+  state.rows = guessedRows;
+  state.cols = guessedCols;
+
+  // Normalize keys: ensure all keys 1..total exist
+  state.layers.forEach(layer => {
+    for (let i = 1; i <= total; i++) {
+      if (!(i in layer.keys)) layer.keys[i] = null;
+    }
+    // Normalize encoders
+    const encs = {};
+    for (let e = 0; e < maxEnc; e++) {
+      ['L','B','R'].forEach(dir => {
+        const id = `EC${e}${dir}`;
+        encs[id] = layer.encoders[id] || null;
+      });
+    }
+    layer.encoders = encs;
+  });
+
+  state.currentLayer = 0;
+  state.selectedKey = null;
+  syncInputs();
+  render();
+}
+
+// ═══════════════════════════════════════════
+//  STATUS
+// ═══════════════════════════════════════════
+let statusTimer = null;
+function setStatus(msg) {
+  document.getElementById('status-msg').textContent = msg;
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => {
+    document.getElementById('status-msg').textContent = 'Ready';
+  }, 3000);
+}
+
+// ═══════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════
+initDefault();
+</script>
+</body>
+</html>
