@@ -875,6 +875,10 @@ function applyAction() {
 
   render();
   setStatus(`Applied: ${name}`);
+  if (isMobile()) {
+    const gridBtn = document.querySelectorAll('.mobile-nav button')[1];
+    switchMobilePanel('center-panel', gridBtn);
+  }
 }
 
 function clearAction() {
