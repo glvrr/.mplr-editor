@@ -183,7 +183,10 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
   justify-content: space-between;
   border-color: var(--line-bright);
   transition: background .1s, border-color .1s;
+  user-select: none;
+  -webkit-user-drag: element;
 }
+.key-btn * { pointer-events: none; }
 .key-btn:hover { border-color: var(--fg); }
 .key-btn.selected { border-color: var(--fg); background: #1a1a1a; }
 .key-btn.drag-over { border-color: var(--fg); background: #222; outline: 2px dashed var(--fg); outline-offset: -3px; }
@@ -246,7 +249,10 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
   flex-direction: column;
   justify-content: space-between;
   border-color: var(--line-bright);
+  user-select: none;
+  -webkit-user-drag: element;
 }
+.encoder-btn * { pointer-events: none; }
 .encoder-btn.selected { border-color: var(--fg); background: #1a1a1a; }
 .encoder-btn.drag-over { border-color: var(--fg); background: #222; outline: 2px dashed var(--fg); outline-offset: -3px; }
 .encoder-btn[draggable="true"] { cursor: grab; }
@@ -1354,7 +1360,6 @@ function loadMplrFile(file) {
 //  DRAG & DROP FILE INTO WINDOW
 // ═══════════════════════════════════════════
 let dragEnterCount = 0;
-const dropOverlay = document.getElementById('drop-overlay');
 
 function isFileDrag(e) {
   return e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files');
@@ -1364,7 +1369,8 @@ window.addEventListener('dragenter', (e) => {
   if (!isFileDrag(e)) return;
   e.preventDefault();
   dragEnterCount++;
-  dropOverlay.classList.add('active');
+  const overlay = document.getElementById('drop-overlay');
+  if (overlay) overlay.classList.add('active');
 });
 
 window.addEventListener('dragover', (e) => {
@@ -1377,7 +1383,8 @@ window.addEventListener('dragleave', (e) => {
   dragEnterCount--;
   if (dragEnterCount <= 0) {
     dragEnterCount = 0;
-    dropOverlay.classList.remove('active');
+    const overlay = document.getElementById('drop-overlay');
+    if (overlay) overlay.classList.remove('active');
   }
 });
 
@@ -1385,7 +1392,8 @@ window.addEventListener('drop', (e) => {
   if (!isFileDrag(e)) return;
   e.preventDefault();
   dragEnterCount = 0;
-  dropOverlay.classList.remove('active');
+  const overlay = document.getElementById('drop-overlay');
+  if (overlay) overlay.classList.remove('active');
 
   const file = e.dataTransfer.files && e.dataTransfer.files[0];
   if (!file) return;
