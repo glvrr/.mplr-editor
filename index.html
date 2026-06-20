@@ -194,9 +194,27 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 }
 .key-btn { position: relative; }
 .key-btn.empty-key { opacity: .4; }
-.key-idx { color: var(--muted); font-size: 10px; }
-.key-name { font-weight: bold; font-size: 12px; }
-.key-method { color: var(--muted); font-size: 10px; }
+.key-idx { color: var(--muted); font-size: 10px; flex-shrink: 0; }
+.key-name {
+  font-weight: bold;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.key-method {
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
+}
+.key-bottom-row { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; min-width: 0; }
+.key-bottom-row .key-idx { white-space: nowrap; }
+.key-bottom-row .key-method { min-width: 0; flex: 1; text-align: right; }
 
 /* ── ENCODER ROW ── */
 .encoder-section { margin-top: 12px; }
@@ -215,6 +233,7 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
   font-size: 11px;
   line-height: 1.3;
   min-height: 52px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -233,8 +252,14 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
   font-size: 11px;
 }
 .encoder-btn { position: relative; }
-.enc-label { color: var(--muted); font-size: 10px; }
-.enc-name { font-weight: bold; }
+.enc-label { color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.enc-name {
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
 
 /* ── LAYER TOPBAR ── */
 .layer-topbar {
@@ -869,6 +894,21 @@ function commitLayerName() {
 
 let dragSrcIdx = null;
 
+function formatShortcut(action) {
+  if (!action) return '';
+  const keys = action.slice(2);
+  if (keys.length === 0) return METHOD_LABELS[action[1]] || action[1] || '';
+  // Shorten common long key names for compact display
+  const SHORT = {
+    CONTROL: 'CTRL', SHIFT: 'SHIFT', ALT: 'ALT',
+    GRAVE_ACCENT: '`', LEFT_BRACKET: '[', RIGHT_BRACKET: ']',
+    ZERO: '0', ONE: '1', TWO: '2', THREE: '3', FOUR: '4',
+    FIVE: '5', SIX: '6', SEVEN: '7', EIGHT: '8', NINE: '9',
+    SPACE: 'SPACE', MINUS: '-', KEYPAD_PLUS: '+', EQUALS: '='
+  };
+  return keys.map(k => SHORT[k] || k).join('+');
+}
+
 function renderGrid() {
   const layer = state.layers[state.currentLayer];
   const matrix = document.getElementById('key-matrix');
@@ -885,8 +925,8 @@ function renderGrid() {
       btn.classList.add('selected');
 
     const name = action ? action[0] : 'Empty';
-    const method = action ? (METHOD_LABELS[action[1]] || action[1]) : '';
-    btn.innerHTML = `<span class="key-name">${name}</span><span class="key-idx">#${i} <span class="key-method">${method}</span></span>`;
+    const shortcut = action ? formatShortcut(action) : '';
+    btn.innerHTML = `<span class="key-name">${name}</span><div class="key-bottom-row"><span class="key-idx">#${i}</span><span class="key-method" title="${shortcut}">${shortcut}</span></div>`;
     btn.dataset.keyIdx = i;
     btn.draggable = true;
 
@@ -965,8 +1005,8 @@ function renderEncoders() {
         btn.classList.add('selected');
 
       const name = action ? action[0] : 'Empty';
-      const method = action ? (METHOD_LABELS[action[1]] || action[1]) : '';
-      btn.innerHTML = `<span class="enc-label">${dirLabels[dir]}</span><span class="enc-name">${name}</span><span class="key-method">${method}</span>`;
+      const shortcut = action ? formatShortcut(action) : '';
+      btn.innerHTML = `<span class="enc-label">${dirLabels[dir]}</span><span class="enc-name">${name}</span><span class="key-method" title="${shortcut}">${shortcut}</span>`;
       btn.dataset.encId = id;
       btn.draggable = true;
       btn.onclick = () => selectKey('encoder', id);
