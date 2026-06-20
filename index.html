@@ -136,6 +136,12 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 
 /* ── TOOLBAR ── */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.toolbar button:disabled {
+  opacity: .3;
+  cursor: not-allowed;
+  border-color: var(--line);
+}
+.toolbar button:disabled:hover { border-color: var(--line); }
 
 /* ── LAYER LIST ── */
 .layer-item {
@@ -178,6 +184,15 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 .key-btn.drag-over { border-color: var(--fg); background: #222; outline: 2px dashed var(--fg); outline-offset: -3px; }
 .key-btn[draggable="true"] { cursor: grab; }
 .key-btn.dragging { opacity: .35; }
+.key-btn.duplicate { border-color: #d4a017; }
+.key-btn.duplicate::after {
+  content: "⚠";
+  position: absolute;
+  top: 4px; right: 4px;
+  color: #d4a017;
+  font-size: 11px;
+}
+.key-btn { position: relative; }
 .key-btn.empty-key { opacity: .4; }
 .key-idx { color: var(--muted); font-size: 10px; }
 .key-name { font-weight: bold; font-size: 12px; }
@@ -206,6 +221,18 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
   border-color: var(--line-bright);
 }
 .encoder-btn.selected { border-color: var(--fg); background: #1a1a1a; }
+.encoder-btn.drag-over { border-color: var(--fg); background: #222; outline: 2px dashed var(--fg); outline-offset: -3px; }
+.encoder-btn[draggable="true"] { cursor: grab; }
+.encoder-btn.dragging { opacity: .35; }
+.encoder-btn.duplicate { border-color: #d4a017; }
+.encoder-btn.duplicate::after {
+  content: "⚠";
+  position: absolute;
+  top: 4px; right: 4px;
+  color: #d4a017;
+  font-size: 11px;
+}
+.encoder-btn { position: relative; }
 .enc-label { color: var(--muted); font-size: 10px; }
 .enc-name { font-weight: bold; }
 
@@ -248,6 +275,26 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
   font-size: 13px;
   border-color: var(--fg);
 }
+
+/* ── DROP OVERLAY ── */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.85);
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.drop-overlay.active { display: flex; }
+.drop-overlay-inner {
+  border: 2px dashed var(--fg);
+  padding: 50px 70px;
+  text-align: center;
+}
+.drop-icon { font-size: 48px; margin-bottom: 14px; }
+.drop-text { font-size: 16px; letter-spacing: .06em; font-weight: bold; }
 
 /* ── ACTION EDITOR ── */
 .key-combo-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
@@ -393,6 +440,10 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
       <label for="file-input" class="file-label-btn" title="Open .mplr file">OPEN<input type="file" id="file-input" accept=".mplr,.txt" style="display:none" onchange="handleFileOpen(event)"></label>
       <button onclick="saveFile()" class="primary" title="Download .mplr file">SAVE</button>
     </div>
+    <div class="toolbar">
+      <button id="undo-btn" onclick="undo()" title="Undo (Ctrl+Z)" disabled>↶ UNDO</button>
+      <button id="redo-btn" onclick="redo()" title="Redo (Ctrl+Y)" disabled>↷ REDO</button>
+    </div>
 
     <div class="section" id="sec-project">
       <div class="section-header" onclick="toggleSection('sec-project')">
@@ -512,6 +563,86 @@ let state = {
 };
 
 // ═══════════════════════════════════════════
+//  UNDO / REDO HISTORY
+// ═══════════════════════════════════════════
+const HISTORY_LIMIT = 30;
+let undoStack = [];
+let redoStack = [];
+let suppressHistory = false; // true while restoring, to avoid re-pushing
+
+function snapshotState() {
+  // Deep clone everything except the transient selectedKey (kept for UX continuity)
+  return JSON.parse(JSON.stringify({
+    presetName: state.presetName,
+    rows: state.rows,
+    cols: state.cols,
+    encoders: state.encoders,
+    currentLayer: state.currentLayer,
+    layers: state.layers
+  }));
+}
+
+let hasUnsavedChanges = false;
+
+function pushHistory() {
+  if (suppressHistory) return;
+  undoStack.push(snapshotState());
+  if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+  redoStack = []; // new action invalidates redo branch
+  updateUndoRedoButtons();
+  hasUnsavedChanges = true;
+}
+
+function restoreSnapshot(snap) {
+  suppressHistory = true;
+  hasUnsavedChanges = true;
+  state.presetName = snap.presetName;
+  state.rows = snap.rows;
+  state.cols = snap.cols;
+  state.encoders = snap.encoders;
+  state.currentLayer = snap.currentLayer;
+  state.layers = snap.layers;
+  state.selectedKey = null;
+  syncInputs();
+  render();
+  suppressHistory = false;
+}
+
+function undo() {
+  if (undoStack.length === 0) { setStatus('Nothing to undo'); return; }
+  redoStack.push(snapshotState());
+  const snap = undoStack.pop();
+  restoreSnapshot(snap);
+  updateUndoRedoButtons();
+  setStatus('Undo');
+}
+
+function redo() {
+  if (redoStack.length === 0) { setStatus('Nothing to redo'); return; }
+  undoStack.push(snapshotState());
+  const snap = redoStack.pop();
+  restoreSnapshot(snap);
+  updateUndoRedoButtons();
+  setStatus('Redo');
+}
+
+function updateUndoRedoButtons() {
+  const undoBtn = document.getElementById('undo-btn');
+  const redoBtn = document.getElementById('redo-btn');
+  if (undoBtn) undoBtn.disabled = undoStack.length === 0;
+  if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+}
+
+document.addEventListener('keydown', (e) => {
+  const meta = e.ctrlKey || e.metaKey;
+  if (!meta) return;
+  if (e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y') {
+    e.preventDefault(); redo();
+  }
+});
+
+// ═══════════════════════════════════════════
 //  INIT WITH EXAMPLE DATA
 // ═══════════════════════════════════════════
 function makeEmptyLayer(name, totalKeys, encoderCount) {
@@ -593,8 +724,53 @@ function render() {
   renderLayerTabs();
   renderGrid();
   renderEncoders();
+  highlightDuplicates();
   updatePreview();
   if (state.selectedKey) renderActionForm();
+}
+
+function comboSignature(action) {
+  // method + sorted keys, ignoring the name — same trigger combo
+  if (!action || action.length < 2) return null;
+  const method = action[1];
+  const keys = action.slice(2).slice().sort().join('+');
+  if (!keys) return null; // no keys = nothing to collide on
+  return `${method}::${keys}`;
+}
+
+function highlightDuplicates() {
+  const layer = state.layers[state.currentLayer];
+  if (!layer) return;
+
+  const sigMap = {}; // signature -> array of {kind, id}
+  Object.keys(layer.keys).forEach(k => {
+    const sig = comboSignature(layer.keys[k]);
+    if (!sig) return;
+    (sigMap[sig] = sigMap[sig] || []).push({ kind: 'key', id: k });
+  });
+  Object.keys(layer.encoders).forEach(ek => {
+    const sig = comboSignature(layer.encoders[ek]);
+    if (!sig) return;
+    (sigMap[sig] = sigMap[sig] || []).push({ kind: 'encoder', id: ek });
+  });
+
+  const dupSet = new Set();
+  Object.values(sigMap).forEach(list => {
+    if (list.length > 1) list.forEach(item => dupSet.add(`${item.kind}:${item.id}`));
+  });
+
+  document.querySelectorAll('.key-btn').forEach(btn => {
+    const id = btn.dataset.keyIdx;
+    btn.classList.toggle('duplicate', dupSet.has(`key:${id}`));
+  });
+  document.querySelectorAll('.encoder-btn').forEach(btn => {
+    const id = btn.dataset.encId;
+    btn.classList.toggle('duplicate', dupSet.has(`encoder:${id}`));
+  });
+
+  if (dupSet.size > 0) {
+    setStatus(`⚠ ${dupSet.size} key(s) share the same combo`);
+  }
 }
 
 function renderStats() {
@@ -682,6 +858,7 @@ function commitLayerName() {
   const idx = parseInt(inp.dataset.layerIdx);
   const val = inp.value.trim();
   if (val && !isNaN(idx)) {
+    pushHistory();
     state.layers[idx].name = val;
     renderLayerList();
     renderLayerTabs();
@@ -746,6 +923,7 @@ function renderGrid() {
 }
 
 function swapKeys(a, b) {
+  pushHistory();
   const layer = state.layers[state.currentLayer];
   const tmp = layer.keys[a];
   layer.keys[a] = layer.keys[b];
@@ -759,6 +937,8 @@ function swapKeys(a, b) {
   updatePreview();
   setStatus(`Swapped key #${a} ↔ #${b}`);
 }
+
+let dragSrcEncId = null;
 
 function renderEncoders() {
   const layer = state.layers[state.currentLayer];
@@ -787,12 +967,56 @@ function renderEncoders() {
       const name = action ? action[0] : 'Empty';
       const method = action ? (METHOD_LABELS[action[1]] || action[1]) : '';
       btn.innerHTML = `<span class="enc-label">${dirLabels[dir]}</span><span class="enc-name">${name}</span><span class="key-method">${method}</span>`;
+      btn.dataset.encId = id;
+      btn.draggable = true;
       btn.onclick = () => selectKey('encoder', id);
+
+      // drag
+      btn.addEventListener('dragstart', ev => {
+        dragSrcEncId = id;
+        btn.classList.add('dragging');
+        ev.dataTransfer.effectAllowed = 'move';
+      });
+      btn.addEventListener('dragend', () => {
+        dragSrcEncId = null;
+        document.querySelectorAll('.encoder-btn').forEach(b => {
+          b.classList.remove('dragging', 'drag-over');
+        });
+      });
+      btn.addEventListener('dragover', ev => {
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = 'move';
+        if (dragSrcEncId !== null && dragSrcEncId !== id)
+          btn.classList.add('drag-over');
+      });
+      btn.addEventListener('dragleave', () => btn.classList.remove('drag-over'));
+      btn.addEventListener('drop', ev => {
+        ev.preventDefault();
+        btn.classList.remove('drag-over');
+        if (dragSrcEncId === null || dragSrcEncId === id) return;
+        swapEncoders(dragSrcEncId, id);
+      });
+
       row.appendChild(btn);
     });
 
     sec.appendChild(row);
   }
+}
+
+function swapEncoders(a, b) {
+  pushHistory();
+  const layer = state.layers[state.currentLayer];
+  const tmp = layer.encoders[a];
+  layer.encoders[a] = layer.encoders[b];
+  layer.encoders[b] = tmp;
+  if (state.selectedKey && state.selectedKey.type === 'encoder') {
+    if (state.selectedKey.id === a) state.selectedKey.id = b;
+    else if (state.selectedKey.id === b) state.selectedKey.id = a;
+  }
+  renderEncoders();
+  updatePreview();
+  setStatus(`Swapped ${a} ↔ ${b}`);
 }
 
 // ═══════════════════════════════════════════
@@ -868,6 +1092,7 @@ function applyAction() {
 
   if (!name) { setStatus('Action name is required'); return; }
 
+  pushHistory();
   const action = [name, method, ...keys];
   const layer = state.layers[state.currentLayer];
   if (state.selectedKey.type === 'key') layer.keys[state.selectedKey.id] = action;
@@ -883,6 +1108,7 @@ function applyAction() {
 
 function clearAction() {
   if (!state.selectedKey) return;
+  pushHistory();
   const layer = state.layers[state.currentLayer];
   if (state.selectedKey.type === 'key') layer.keys[state.selectedKey.id] = null;
   else layer.encoders[state.selectedKey.id] = null;
@@ -896,6 +1122,7 @@ function onActionChange() {} // live editing handled on APPLY
 //  LAYER MANAGEMENT
 // ═══════════════════════════════════════════
 function addLayer() {
+  pushHistory();
   const name = `Layer ${state.layers.length}`;
   const total = state.rows * state.cols;
   state.layers.push(makeEmptyLayer(name, total, state.encoders));
@@ -906,6 +1133,7 @@ function addLayer() {
 
 function deleteLayer(idx) {
   if (state.layers.length <= 1) { setStatus('Cannot delete last layer'); return; }
+  pushHistory();
   state.layers.splice(idx, 1);
   if (state.currentLayer >= state.layers.length) state.currentLayer = state.layers.length - 1;
   state.selectedKey = null;
@@ -916,7 +1144,14 @@ function deleteLayer(idx) {
 // ═══════════════════════════════════════════
 //  GRID CONFIG CHANGES
 // ═══════════════════════════════════════════
+let gridChangeHistoryPushed = false;
 function onGridChange() {
+  if (!gridChangeHistoryPushed) {
+    pushHistory();
+    gridChangeHistoryPushed = true;
+    clearTimeout(window._gridChangeResetTimer);
+    window._gridChangeResetTimer = setTimeout(() => { gridChangeHistoryPushed = false; }, 800);
+  }
   state.rows = parseInt(document.getElementById('cfg-rows').value) || 4;
   state.cols = parseInt(document.getElementById('cfg-cols').value) || 5;
   state.encoders = parseInt(document.getElementById('cfg-encs').value) || 0;
@@ -942,7 +1177,14 @@ function onGridChange() {
   render();
 }
 
+let presetNameHistoryPushed = false;
 function onPresetNameChange() {
+  if (!presetNameHistoryPushed) {
+    pushHistory();
+    presetNameHistoryPushed = true;
+    clearTimeout(window._presetNameResetTimer);
+    window._presetNameResetTimer = setTimeout(() => { presetNameHistoryPushed = false; }, 800);
+  }
   state.presetName = document.getElementById('preset-name').value;
   renderStats();
   updatePreview();
@@ -960,29 +1202,6 @@ function syncInputs() {
 // ═══════════════════════════════════════════
 function serializeMplr() {
   const lines = [];
-  lines.push('# manipylyator .mplr-file');
-  lines.push('');
-  lines.push('"""');
-  lines.push('Hardware syntax:');
-  lines.push('    Keys - int');
-  lines.push('    Buttons -  string "B" + index');
-  lines.push('    Encoders - string "EC" + index, for mapping using suffixes: L-left, R-right, B-button');
-  lines.push('Examples:');
-  lines.push('        Key -       0: ["Key", "p", "K", "E", "Y"],');
-  lines.push('        Button -   "B0": ["Button", "s", "B", "U", "T", "T", "O", "N"],');
-  lines.push('        Encoder -  "EC0L": ["Left", "s", "L", "E", "F", "T"],');
-  lines.push('');
-  lines.push('For imput methods and devices:');
-  lines.push('    p -> PRESS/RELEASE');
-  lines.push('    s -> SEND');
-  lines.push('    m -> Mouse');
-  lines.push('    c -> Consumer Control');
-  lines.push('    i -> On board navigation or funk');
-  lines.push('    d -> ducky');
-  lines.push('Full comand syntax:');
-  lines.push('        "EC9999B":["Command name", "Input method or device", "PRESSED_KEY1", "PRESSED_KEY2", "PRESSED_KEY3"]');
-  lines.push('"""');
-  lines.push('');
   lines.push('{');
 
   const presetName = state.presetName || 'Preset';
@@ -1026,7 +1245,10 @@ function updatePreview() {
 //  OPEN / SAVE
 // ═══════════════════════════════════════════
 function newFile() {
-  if (!confirm('Create new preset? Unsaved changes will be lost.')) return;
+  if (hasUnsavedChanges && !confirm('You have unsaved changes. Create a new preset anyway? This cannot be undone.')) return;
+  undoStack = [];
+  redoStack = [];
+  updateUndoRedoButtons();
   state.presetName = 'New Preset';
   state.rows = 4;
   state.cols = 5;
@@ -1037,6 +1259,7 @@ function newFile() {
   state.selectedKey = null;
   syncInputs();
   render();
+  hasUnsavedChanges = false;
   setStatus('New preset created');
 }
 
@@ -1049,6 +1272,7 @@ function saveFile() {
   a.download = `${name}.mplr`;
   a.click();
   URL.revokeObjectURL(a.href);
+  hasUnsavedChanges = false;
   setStatus(`Saved: ${name}.mplr`);
 }
 
@@ -1059,20 +1283,77 @@ function openFile() {
 function handleFileOpen(event) {
   const file = event.target.files[0];
   if (!file) return;
+  loadMplrFile(file);
+  event.target.value = '';
+}
+
+function loadMplrFile(file) {
+  if (hasUnsavedChanges && !confirm('You have unsaved changes. Open a new file anyway? This cannot be undone.')) return;
   const reader = new FileReader();
   reader.onload = e => {
     try {
       parseMplr(e.target.result);
+      hasUnsavedChanges = false;
       setStatus(`Loaded: ${file.name}`);
     } catch(err) {
       setStatus(`Parse error: ${err.message}`);
     }
   };
   reader.readAsText(file);
-  event.target.value = '';
 }
 
+// ═══════════════════════════════════════════
+//  DRAG & DROP FILE INTO WINDOW
+// ═══════════════════════════════════════════
+let dragEnterCount = 0;
+const dropOverlay = document.getElementById('drop-overlay');
+
+function isFileDrag(e) {
+  return e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files');
+}
+
+window.addEventListener('dragenter', (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragEnterCount++;
+  dropOverlay.classList.add('active');
+});
+
+window.addEventListener('dragover', (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault(); // required to allow drop
+});
+
+window.addEventListener('dragleave', (e) => {
+  if (!isFileDrag(e)) return;
+  dragEnterCount--;
+  if (dragEnterCount <= 0) {
+    dragEnterCount = 0;
+    dropOverlay.classList.remove('active');
+  }
+});
+
+window.addEventListener('drop', (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragEnterCount = 0;
+  dropOverlay.classList.remove('active');
+
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!file) return;
+
+  const validExt = /\.(mplr|txt)$/i.test(file.name);
+  if (!validExt) {
+    setStatus(`Unsupported file: ${file.name}`);
+    return;
+  }
+  loadMplrFile(file);
+});
+
 function parseMplr(text) {
+  undoStack = [];
+  redoStack = [];
+  updateUndoRedoButtons();
   // Strip comments (lines starting with #) and docstring
   let clean = text.replace(/^#.*$/gm, '');
   // Remove the docstring block
@@ -1170,6 +1451,15 @@ function setStatus(msg) {
 // ═══════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  WARN ON CLOSE / RELOAD WITH UNSAVED CHANGES
+// ═══════════════════════════════════════════
+window.addEventListener('beforeunload', (e) => {
+  if (!hasUnsavedChanges) return;
+  e.preventDefault();
+  e.returnValue = ''; // required for the native browser dialog to appear
+});
+
 (function boot() {
   state.presetName = 'New Preset';
   state.rows = 4;
@@ -1182,6 +1472,7 @@ function setStatus(msg) {
   syncInputs();
   render();
   initMobileLayout();
+  updateUndoRedoButtons();
 })();
 
 // ═══════════════════════════════════════════
@@ -1226,6 +1517,13 @@ selectKey = function(type, id) {
 };
 
 </script>
+
+<div class="drop-overlay" id="drop-overlay">
+  <div class="drop-overlay-inner">
+    <div class="drop-icon">⇩</div>
+    <div class="drop-text">Drop .mplr file to open</div>
+  </div>
+</div>
 
 <div class="mobile-nav" id="mobile-nav">
   <button onclick="switchMobilePanel('left-panel', this)">⚙ CONFIG</button>
