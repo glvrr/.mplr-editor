@@ -66,8 +66,91 @@ body {
   gap: 10px;
   padding: 10px;
   height: calc(100vh - 90px);
+  transition: grid-template-columns .18s ease;
 }
-.panel { overflow: auto; padding: 14px; }
+.main.left-collapsed {
+  grid-template-columns: 56px 1fr 340px;
+}
+.panel { overflow: auto; padding: 14px; position: relative; }
+
+/* ── LEFT PANEL COLLAPSE ── */
+#left-panel { transition: padding .18s ease; padding-right: 28px !important; }
+
+.panel-collapse-rail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  border-left: 1px solid var(--line);
+  transition: background .15s, border-color .15s;
+  z-index: 5;
+}
+.panel-collapse-rail:hover {
+  background: rgba(255,255,255,.04);
+  border-left-color: var(--fg);
+}
+.panel-collapse-rail .collapse-arrow {
+  font-size: 9px;
+  color: var(--muted);
+  transition: color .15s, transform .18s ease;
+}
+.panel-collapse-rail:hover .collapse-arrow { color: var(--fg); }
+
+.main.left-collapsed #left-panel {
+  padding: 14px 0 14px 0 !important;
+  overflow: hidden;
+}
+.main.left-collapsed #left-panel .panel-content {
+  display: none;
+}
+.main.left-collapsed .panel-collapse-rail {
+  width: 18px;
+}
+.main.left-collapsed .panel-collapse-rail .collapse-arrow {
+  transform: rotate(180deg);
+}
+.panel-collapsed-rail {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-top: 4px;
+  width: 100%;
+  padding-right: 18px;
+}
+.main.left-collapsed .panel-collapsed-rail { display: flex; }
+.rail-icon-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--line-bright);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+}
+.rail-icon-btn:hover { border-color: var(--fg); }
+.rail-icon-btn.primary { border-color: var(--fg); }
+.rail-icon-btn.primary:hover { background: var(--fg); color: var(--bg); }
+.rail-icon-btn:disabled { opacity: .3; cursor: not-allowed; }
+.rail-icon-btn:disabled:hover { border-color: var(--line-bright); }
+.rail-label {
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: .1em;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  margin-top: 6px;
+}
 
 /* ── COLLAPSIBLE SECTION ── */
 .section { border: 1px solid var(--line); margin-bottom: 10px; }
@@ -428,6 +511,10 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 ══════════════════════════════════════════ */
 @media (max-width: 768px) {
 
+  /* Desktop-only collapse mechanism is irrelevant on mobile (tab nav handles it) */
+  .panel-collapse-rail { display: none; }
+  .panel-collapsed-rail { display: none !important; }
+
   /* Header: stack logo + stats */
   .header {
     height: auto;
@@ -523,6 +610,21 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 
   <!-- ── LEFT PANEL ── -->
   <div class="panel frame" id="left-panel">
+    <div class="panel-collapse-rail" id="left-collapse-btn" onclick="toggleLeftPanel()" title="Collapse panel">
+      <span class="collapse-arrow">◀</span>
+    </div>
+
+    <div class="panel-collapsed-rail">
+      <button class="rail-icon-btn" onclick="newFile()" title="New preset">＋</button>
+      <button class="rail-icon-btn" onclick="document.getElementById('file-input').click()" title="Open .mplr file">⇧</button>
+      <button class="rail-icon-btn primary" onclick="saveFile()" title="Download .mplr file">⇩</button>
+      <div style="height:1px;width:18px;background:var(--line);margin:4px 0"></div>
+      <button class="rail-icon-btn" id="undo-btn-rail" onclick="undo()" title="Undo (Ctrl+Z)" disabled>↶</button>
+      <button class="rail-icon-btn" id="redo-btn-rail" onclick="redo()" title="Redo (Ctrl+Y)" disabled>↷</button>
+      <div class="rail-label">CONFIG</div>
+    </div>
+
+    <div class="panel-content">
     <div class="toolbar-group">
       <div class="toolbar-row">
         <button class="tbtn" onclick="newFile()" title="New preset">
@@ -570,6 +672,7 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
         <div id="layer-list"></div>
         <button style="width:100%;margin-top:4px" onclick="addLayer()">+ Add layer</button>
       </div>
+    </div>
     </div>
   </div>
 
@@ -738,8 +841,22 @@ function redo() {
 function updateUndoRedoButtons() {
   const undoBtn = document.getElementById('undo-btn');
   const redoBtn = document.getElementById('redo-btn');
+  const undoBtnRail = document.getElementById('undo-btn-rail');
+  const redoBtnRail = document.getElementById('redo-btn-rail');
   if (undoBtn) undoBtn.disabled = undoStack.length === 0;
   if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+  if (undoBtnRail) undoBtnRail.disabled = undoStack.length === 0;
+  if (redoBtnRail) redoBtnRail.disabled = redoStack.length === 0;
+}
+
+// ═══════════════════════════════════════════
+//  LEFT PANEL COLLAPSE (VS Code style)
+// ═══════════════════════════════════════════
+function toggleLeftPanel() {
+  const main = document.querySelector('.main');
+  const collapsed = main.classList.toggle('left-collapsed');
+  const btn = document.getElementById('left-collapse-btn');
+  btn.title = collapsed ? 'Expand panel' : 'Collapse panel';
 }
 
 document.addEventListener('keydown', (e) => {
