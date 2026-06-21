@@ -135,13 +135,61 @@ button.primary { border-color: var(--fg); }
 button.primary:hover { background: var(--fg); color: var(--bg); }
 
 /* ── TOOLBAR ── */
-.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
-.toolbar button:disabled {
+.toolbar-group {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.toolbar-row {
+  display: flex;
+  gap: 6px;
+}
+.toolbar-row + .toolbar-row { margin-top: 8px; }
+.toolbar-row-split {
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.tbtn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 6px;
+  cursor: pointer;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line-bright);
+  font-family: inherit;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.tbtn:hover { border-color: var(--fg); }
+.tbtn.primary { border-color: var(--fg); }
+.tbtn.primary:hover { background: var(--fg); color: var(--bg); }
+.tbtn.primary .tbtn-icon, .tbtn.primary .tbtn-label { color: inherit; }
+
+.tbtn-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.tbtn-label {
+  font-size: 9px;
+  letter-spacing: .07em;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.tbtn:disabled {
   opacity: .3;
   cursor: not-allowed;
   border-color: var(--line);
 }
-.toolbar button:disabled:hover { border-color: var(--line); }
+.tbtn:disabled:hover { border-color: var(--line); }
+
+/* DOWNLOAD gets more visual weight as the primary action */
+.toolbar-row .tbtn.primary { flex: 1.4; }
 
 /* ── LAYER LIST ── */
 .layer-item {
@@ -336,6 +384,20 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 .drop-text { font-size: 16px; letter-spacing: .06em; font-weight: bold; }
 
 /* ── ACTION EDITOR ── */
+.mod-toggle-row { display: flex; gap: 6px; margin-bottom: 4px; }
+.mod-toggle {
+  flex: 1;
+  font-size: 11px;
+  letter-spacing: .04em;
+  padding: 8px 4px;
+  border-color: var(--line-bright);
+}
+.mod-toggle.active {
+  background: var(--active-bg);
+  color: var(--active-fg);
+  border-color: var(--active-bg);
+  font-weight: bold;
+}
 .key-combo-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .key-combo-item {
   display: flex;
@@ -345,19 +407,6 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 .key-combo-item input { flex: 1; }
 .key-combo-item button { flex: 0 0 auto; padding: 8px 10px; }
 .add-key-btn { width: 100%; }
-.file-label-btn {
-  background: var(--bg);
-  color: var(--fg);
-  border: 1px solid var(--line-bright);
-  padding: 8px 12px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  transition: background .12s, color .12s, border-color .12s;
-  display: inline-flex;
-  align-items: center;
-}
-.file-label-btn:hover { border-color: var(--fg); }
 
 /* ── STATUS BAR ── */
 .statusbar {
@@ -474,14 +523,27 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 
   <!-- ── LEFT PANEL ── -->
   <div class="panel frame" id="left-panel">
-    <div class="toolbar">
-      <button onclick="newFile()" title="New preset">NEW</button>
-      <label for="file-input" class="file-label-btn" title="Open .mplr file">OPEN<input type="file" id="file-input" accept=".mplr,.txt" style="display:none" onchange="handleFileOpen(event)"></label>
-      <button onclick="saveFile()" class="primary" title="Download .mplr file">SAVE</button>
-    </div>
-    <div class="toolbar">
-      <button id="undo-btn" onclick="undo()" title="Undo (Ctrl+Z)" disabled>↶ UNDO</button>
-      <button id="redo-btn" onclick="redo()" title="Redo (Ctrl+Y)" disabled>↷ REDO</button>
+    <div class="toolbar-group">
+      <div class="toolbar-row">
+        <button class="tbtn" onclick="newFile()" title="New preset">
+          <span class="tbtn-icon">＋</span><span class="tbtn-label">NEW</span>
+        </button>
+        <label for="file-input" class="tbtn" title="Open .mplr file">
+          <span class="tbtn-icon">⇧</span><span class="tbtn-label">OPEN</span>
+          <input type="file" id="file-input" accept=".mplr,.txt" style="display:none" onchange="handleFileOpen(event)">
+        </label>
+        <button class="tbtn primary" onclick="saveFile()" title="Download .mplr file">
+          <span class="tbtn-icon">⇩</span><span class="tbtn-label">DOWNLOAD</span>
+        </button>
+      </div>
+      <div class="toolbar-row toolbar-row-split">
+        <button class="tbtn" id="undo-btn" onclick="undo()" title="Undo (Ctrl+Z)" disabled>
+          <span class="tbtn-icon">↶</span><span class="tbtn-label">UNDO</span>
+        </button>
+        <button class="tbtn" id="redo-btn" onclick="redo()" title="Redo (Ctrl+Y)" disabled>
+          <span class="tbtn-icon">↷</span><span class="tbtn-label">REDO</span>
+        </button>
+      </div>
     </div>
 
     <div class="section" id="sec-project">
@@ -549,6 +611,14 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
             <option value="i">On-board / Function</option>
             <option value="d">Ducky</option>
           </select>
+
+          <div class="flabel">Modifiers</div>
+          <div class="mod-toggle-row" id="mod-toggle-row">
+            <button type="button" class="mod-toggle" data-mod="CONTROL" onclick="toggleModifier('CONTROL', this)">CTRL</button>
+            <button type="button" class="mod-toggle" data-mod="SHIFT" onclick="toggleModifier('SHIFT', this)">SHIFT</button>
+            <button type="button" class="mod-toggle" data-mod="ALT" onclick="toggleModifier('ALT', this)">ALT</button>
+            <button type="button" class="mod-toggle" data-mod="GUI" onclick="toggleModifier('GUI', this)">GUI</button>
+          </div>
 
           <div class="flabel">Key sequence</div>
           <div class="key-combo-list" id="key-combo-list"></div>
@@ -1103,7 +1173,30 @@ function renderActionForm() {
   document.getElementById('act-method').value = action ? action[1] : 'p';
 
   const keys = action ? action.slice(2) : [];
-  renderKeyCombo(keys);
+  activeModifiers = new Set(keys.filter(k => MODIFIER_KEYS.includes(k)));
+  const regularKeys = keys.filter(k => !MODIFIER_KEYS.includes(k));
+  syncModifierToggles();
+  renderKeyCombo(regularKeys);
+}
+
+const MODIFIER_KEYS = ['CONTROL', 'SHIFT', 'ALT', 'GUI'];
+let activeModifiers = new Set();
+
+function toggleModifier(mod, btn) {
+  if (activeModifiers.has(mod)) {
+    activeModifiers.delete(mod);
+    btn.classList.remove('active');
+  } else {
+    activeModifiers.add(mod);
+    btn.classList.add('active');
+  }
+}
+
+function syncModifierToggles() {
+  document.querySelectorAll('.mod-toggle').forEach(btn => {
+    const mod = btn.dataset.mod;
+    btn.classList.toggle('active', activeModifiers.has(mod));
+  });
 }
 
 function renderKeyCombo(keys) {
@@ -1114,12 +1207,12 @@ function renderKeyCombo(keys) {
     row.className = 'key-combo-item';
     const inp = document.createElement('input');
     inp.value = k;
-    inp.placeholder = 'e.g. CONTROL';
+    inp.placeholder = 'e.g. Z, F1, SPACE';
     inp.dataset.idx = idx;
     const del = document.createElement('button');
     del.textContent = '✕';
     del.onclick = () => {
-      const current = getComboKeys();
+      const current = getNonModifierKeys();
       current.splice(idx, 1);
       renderKeyCombo(current);
     };
@@ -1128,12 +1221,18 @@ function renderKeyCombo(keys) {
   });
 }
 
-function getComboKeys() {
+function getNonModifierKeys() {
   return [...document.querySelectorAll('#key-combo-list input')].map(i => i.value.trim()).filter(Boolean);
 }
 
+function getComboKeys() {
+  // Modifiers always come first, in a fixed order, followed by regular keys
+  const mods = MODIFIER_KEYS.filter(m => activeModifiers.has(m));
+  return [...mods, ...getNonModifierKeys()];
+}
+
 function addKeyToCombo() {
-  const current = getComboKeys();
+  const current = getNonModifierKeys();
   current.push('');
   renderKeyCombo(current);
 }
