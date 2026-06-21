@@ -511,8 +511,18 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 ══════════════════════════════════════════ */
 @media (max-width: 768px) {
 
-  /* Desktop-only collapse mechanism is irrelevant on mobile (tab nav handles it) */
-  .panel-collapse-rail { display: none; }
+  /* Desktop-only collapse mechanism must not affect mobile layout at all */
+  .main.left-collapsed {
+    grid-template-columns: 1fr !important;
+  }
+  .main.left-collapsed #left-panel {
+    padding: 12px !important;
+    overflow: visible !important;
+  }
+  .main.left-collapsed #left-panel .panel-content {
+    display: block !important;
+  }
+  .panel-collapse-rail { display: none !important; }
   .panel-collapsed-rail { display: none !important; }
 
   /* Header: stack logo + stats */
