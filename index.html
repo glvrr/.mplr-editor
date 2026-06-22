@@ -665,6 +665,8 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
       <div class="section-body">
         <div class="flabel">Preset name</div>
         <input id="preset-name" value="Photoshop" oninput="onPresetNameChange()">
+        <div class="flabel">Icon name <span style="color:var(--muted);font-weight:normal">(optional, .png added automatically)</span></div>
+        <input id="icon-name" placeholder="e.g. photoshop" oninput="onIconNameChange()">
         <div class="flabel">Rows</div>
         <input id="cfg-rows" type="number" min="1" max="10" value="4" oninput="onGridChange()">
         <div class="flabel">Columns</div>
@@ -776,6 +778,7 @@ const METHOD_LABELS = {
 
 let state = {
   presetName: 'Photoshop',
+  iconName: '',
   rows: 4,
   cols: 5,
   encoders: 1,
@@ -796,6 +799,7 @@ function snapshotState() {
   // Deep clone everything except the transient selectedKey (kept for UX continuity)
   return JSON.parse(JSON.stringify({
     presetName: state.presetName,
+    iconName: state.iconName,
     rows: state.rows,
     cols: state.cols,
     encoders: state.encoders,
@@ -819,6 +823,7 @@ function restoreSnapshot(snap) {
   suppressHistory = true;
   hasUnsavedChanges = true;
   state.presetName = snap.presetName;
+  state.iconName = snap.iconName || '';
   state.rows = snap.rows;
   state.cols = snap.cols;
   state.encoders = snap.encoders;
@@ -1542,8 +1547,22 @@ function onPresetNameChange() {
   updatePreview();
 }
 
+let iconNameHistoryPushed = false;
+function onIconNameChange() {
+  if (!iconNameHistoryPushed) {
+    pushHistory();
+    iconNameHistoryPushed = true;
+    clearTimeout(window._iconNameResetTimer);
+    window._iconNameResetTimer = setTimeout(() => { iconNameHistoryPushed = false; }, 800);
+  }
+  // Strip any extension the user might type — .png is always appended on save
+  state.iconName = document.getElementById('icon-name').value.replace(/\.[a-zA-Z0-9]+$/, '');
+  updatePreview();
+}
+
 function syncInputs() {
   document.getElementById('preset-name').value = state.presetName;
+  document.getElementById('icon-name').value = state.iconName || '';
   document.getElementById('cfg-rows').value = state.rows;
   document.getElementById('cfg-cols').value = state.cols;
   document.getElementById('cfg-encs').value = state.encoders;
@@ -1558,6 +1577,10 @@ function serializeMplr() {
 
   const presetName = state.presetName || 'Preset';
   lines.push(`"${presetName}": {`);
+
+  if (state.iconName && state.iconName.trim()) {
+    lines.push(`    "Icon": "${state.iconName.trim()}.png",`);
+  }
 
   state.layers.forEach((layer, li) => {
     lines.push(`    "Layer${li}": {`);
@@ -1602,6 +1625,7 @@ function newFile() {
   redoStack = [];
   updateUndoRedoButtons();
   state.presetName = 'New Preset';
+  state.iconName = '';
   state.rows = 4;
   state.cols = 5;
   state.encoders = 1;
@@ -1733,6 +1757,10 @@ function parseMplr(text) {
   const preset = parsed[presetName];
 
   state.presetName = presetName;
+  state.iconName = '';
+  if (typeof preset['Icon'] === 'string' && preset['Icon'].trim()) {
+    state.iconName = preset['Icon'].trim().replace(/\.png$/i, '');
+  }
   state.layers = [];
 
   let maxKey = 0;
@@ -1816,6 +1844,7 @@ window.addEventListener('beforeunload', (e) => {
 
 (function boot() {
   state.presetName = 'New Preset';
+  state.iconName = '';
   state.rows = 4;
   state.cols = 5;
   state.encoders = 1;
