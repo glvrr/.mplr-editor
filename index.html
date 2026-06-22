@@ -487,7 +487,7 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
   gap: 4px;
   align-items: center;
 }
-.key-combo-item input { flex: 1; }
+.key-combo-item input { flex: 1; text-transform: uppercase; }
 .key-combo-item button { flex: 0 0 auto; padding: 8px 10px; }
 .add-key-btn { width: 100%; }
 
@@ -1028,6 +1028,13 @@ function renderLayerList() {
     if (idx === state.currentLayer) btn.classList.add('active');
     btn.onclick = () => { state.currentLayer = idx; state.selectedKey = null; render(); };
 
+    const dup = document.createElement('button');
+    dup.textContent = '⧉';
+    dup.className = 'del-btn';
+    dup.style.cssText = 'flex:0 0 auto;padding:8px 10px';
+    dup.title = 'Duplicate layer';
+    dup.onclick = (e) => { e.stopPropagation(); duplicateLayer(idx); };
+
     const del = document.createElement('button');
     del.textContent = '✕';
     del.className = 'del-btn danger';
@@ -1036,6 +1043,7 @@ function renderLayerList() {
     del.onclick = (e) => { e.stopPropagation(); deleteLayer(idx); };
 
     row.appendChild(btn);
+    row.appendChild(dup);
     row.appendChild(del);
     el.appendChild(row);
   });
@@ -1064,6 +1072,14 @@ function renderLayerTabs() {
       editBtn.title = 'Rename layer';
       editBtn.onclick = () => openLayerNameEditor(idx);
       wrap.appendChild(editBtn);
+
+      const dupBtn = document.createElement('button');
+      dupBtn.className = 'tab active';
+      dupBtn.textContent = '⧉';
+      dupBtn.style.cssText = 'padding:8px 10px;border-left:1px solid var(--line);font-size:12px';
+      dupBtn.title = 'Duplicate layer';
+      dupBtn.onclick = () => duplicateLayer(idx);
+      wrap.appendChild(dupBtn);
     }
 
     el.appendChild(wrap);
@@ -1283,6 +1299,14 @@ function selectKey(type, id) {
   const action = type === 'key' ? layer.keys[id] : layer.encoders[id];
   const label = type === 'key' ? `Key #${id}` : id;
   document.getElementById('status-sel').textContent = `${label} · Layer: ${layer.name}`;
+
+  // Auto-collapse the config panel on desktop to give the grid more room while editing
+  const main = document.querySelector('.main');
+  if (!isMobile() && main && !main.classList.contains('left-collapsed')) {
+    main.classList.add('left-collapsed');
+    const btn = document.getElementById('left-collapse-btn');
+    if (btn) btn.title = 'Expand panel';
+  }
 }
 
 function renderActionForm() {
@@ -1349,7 +1373,7 @@ function renderKeyCombo(keys) {
 }
 
 function getNonModifierKeys() {
-  return [...document.querySelectorAll('#key-combo-list input')].map(i => i.value.trim()).filter(Boolean);
+  return [...document.querySelectorAll('#key-combo-list input')].map(i => i.value.trim().toUpperCase()).filter(Boolean);
 }
 
 function getComboKeys() {
@@ -1409,6 +1433,18 @@ function addLayer() {
   state.currentLayer = state.layers.length - 1;
   render();
   setStatus(`Added layer: ${name}`);
+}
+
+function duplicateLayer(idx) {
+  pushHistory();
+  const source = state.layers[idx];
+  const copy = JSON.parse(JSON.stringify(source));
+  copy.name = `${source.name} copy`;
+  state.layers.splice(idx + 1, 0, copy);
+  state.currentLayer = idx + 1;
+  state.selectedKey = null;
+  render();
+  setStatus(`Duplicated layer: ${copy.name}`);
 }
 
 function deleteLayer(idx) {
