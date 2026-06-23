@@ -363,6 +363,7 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 .key-btn:hover { border-color: var(--fg); }
 .key-btn.selected { border-color: var(--fg); background: #1a1a1a; }
 .key-btn.drag-over { border-color: var(--fg); background: #222; outline: 2px dashed var(--fg); outline-offset: -3px; }
+.key-btn.drag-over-copy { border-color: #3ba55c; background: #16241a; outline: 2px dashed #3ba55c; outline-offset: -3px; }
 .key-btn[draggable="true"] { cursor: grab; }
 .key-btn.dragging { opacity: .35; }
 .key-btn.duplicate { border-color: #d4a017; }
@@ -428,6 +429,7 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
 .encoder-btn * { pointer-events: none; }
 .encoder-btn.selected { border-color: var(--fg); background: #1a1a1a; }
 .encoder-btn.drag-over { border-color: var(--fg); background: #222; outline: 2px dashed var(--fg); outline-offset: -3px; }
+.encoder-btn.drag-over-copy { border-color: #3ba55c; background: #16241a; outline: 2px dashed #3ba55c; outline-offset: -3px; }
 .encoder-btn[draggable="true"] { cursor: grab; }
 .encoder-btn.dragging { opacity: .35; }
 .encoder-btn.duplicate { border-color: #d4a017; }
@@ -1246,26 +1248,29 @@ function renderGrid() {
     btn.addEventListener('dragstart', e => {
       dragSrcIdx = i;
       btn.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.effectAllowed = 'copyMove';
     });
     btn.addEventListener('dragend', () => {
       dragSrcIdx = null;
       document.querySelectorAll('.key-btn').forEach(b => {
-        b.classList.remove('dragging', 'drag-over');
+        b.classList.remove('dragging', 'drag-over', 'drag-over-copy');
       });
     });
     btn.addEventListener('dragover', e => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      if (dragSrcIdx !== null && dragSrcIdx !== i)
-        btn.classList.add('drag-over');
+      e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
+      if (dragSrcIdx !== null && dragSrcIdx !== i) {
+        btn.classList.toggle('drag-over-copy', e.altKey);
+        btn.classList.toggle('drag-over', !e.altKey);
+      }
     });
-    btn.addEventListener('dragleave', () => btn.classList.remove('drag-over'));
+    btn.addEventListener('dragleave', () => btn.classList.remove('drag-over', 'drag-over-copy'));
     btn.addEventListener('drop', e => {
       e.preventDefault();
-      btn.classList.remove('drag-over');
+      btn.classList.remove('drag-over', 'drag-over-copy');
       if (dragSrcIdx === null || dragSrcIdx === i) return;
-      swapKeys(dragSrcIdx, i);
+      if (e.altKey) copyKeyTo(dragSrcIdx, i);
+      else swapKeys(dragSrcIdx, i);
     });
 
     matrix.appendChild(btn);
@@ -1286,6 +1291,17 @@ function swapKeys(a, b) {
   renderGrid();
   updatePreview();
   setStatus(`Swapped key #${a} ↔ #${b}`);
+}
+
+function copyKeyTo(src, dst) {
+  const layer = state.layers[state.currentLayer];
+  const action = layer.keys[src];
+  if (!action) { setStatus('Nothing to duplicate — source is empty'); return; }
+  pushHistory();
+  layer.keys[dst] = JSON.parse(JSON.stringify(action));
+  renderGrid();
+  updatePreview();
+  setStatus(`Duplicated key #${src} → #${dst}`);
 }
 
 let dragSrcEncId = null;
@@ -1325,26 +1341,29 @@ function renderEncoders() {
       btn.addEventListener('dragstart', ev => {
         dragSrcEncId = id;
         btn.classList.add('dragging');
-        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.effectAllowed = 'copyMove';
       });
       btn.addEventListener('dragend', () => {
         dragSrcEncId = null;
         document.querySelectorAll('.encoder-btn').forEach(b => {
-          b.classList.remove('dragging', 'drag-over');
+          b.classList.remove('dragging', 'drag-over', 'drag-over-copy');
         });
       });
       btn.addEventListener('dragover', ev => {
         ev.preventDefault();
-        ev.dataTransfer.dropEffect = 'move';
-        if (dragSrcEncId !== null && dragSrcEncId !== id)
-          btn.classList.add('drag-over');
+        ev.dataTransfer.dropEffect = ev.altKey ? 'copy' : 'move';
+        if (dragSrcEncId !== null && dragSrcEncId !== id) {
+          btn.classList.toggle('drag-over-copy', ev.altKey);
+          btn.classList.toggle('drag-over', !ev.altKey);
+        }
       });
-      btn.addEventListener('dragleave', () => btn.classList.remove('drag-over'));
+      btn.addEventListener('dragleave', () => btn.classList.remove('drag-over', 'drag-over-copy'));
       btn.addEventListener('drop', ev => {
         ev.preventDefault();
-        btn.classList.remove('drag-over');
+        btn.classList.remove('drag-over', 'drag-over-copy');
         if (dragSrcEncId === null || dragSrcEncId === id) return;
-        swapEncoders(dragSrcEncId, id);
+        if (ev.altKey) copyEncoderTo(dragSrcEncId, id);
+        else swapEncoders(dragSrcEncId, id);
       });
 
       row.appendChild(btn);
@@ -1367,6 +1386,17 @@ function swapEncoders(a, b) {
   renderEncoders();
   updatePreview();
   setStatus(`Swapped ${a} ↔ ${b}`);
+}
+
+function copyEncoderTo(src, dst) {
+  const layer = state.layers[state.currentLayer];
+  const action = layer.encoders[src];
+  if (!action) { setStatus('Nothing to duplicate — source is empty'); return; }
+  pushHistory();
+  layer.encoders[dst] = JSON.parse(JSON.stringify(action));
+  renderEncoders();
+  updatePreview();
+  setStatus(`Duplicated ${src} → ${dst}`);
 }
 
 // ═══════════════════════════════════════════
