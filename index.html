@@ -322,9 +322,28 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
   gap: 6px;
   margin-bottom: 6px;
   align-items: center;
+  border: 1px solid transparent;
+  transition: border-color .12s, background .12s, opacity .12s;
 }
 .layer-item button { flex: 1; text-align: left; }
 .layer-item .del-btn { flex: 0 0 auto; padding: 8px 10px; }
+.layer-drag-handle {
+  flex: 0 0 auto;
+  width: 18px;
+  text-align: center;
+  color: var(--muted);
+  cursor: grab;
+  font-size: 13px;
+  user-select: none;
+}
+.layer-drag-handle:hover { color: var(--fg); }
+.layer-item.dragging { opacity: .35; }
+.layer-item.drag-over {
+  border-color: var(--fg);
+  background: #1a1a1a;
+  outline: 1px dashed var(--fg);
+  outline-offset: -2px;
+}
 
 /* ── LAYER TABS ── */
 .layer-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -972,6 +991,11 @@ document.addEventListener('keydown', (e) => {
     if ((e.key === 'Delete' || e.key === 'Backspace') && !isTypingInField(e) && state.selectedKey) {
       e.preventDefault();
       clearAction();
+      return;
+    }
+    if (e.key.startsWith('Arrow') && !isTypingInField(e)) {
+      handleArrowNavigation(e);
+      return;
     }
     return;
   }
@@ -987,6 +1011,40 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault(); pasteIntoSelectedAction();
   }
 });
+
+function handleArrowNavigation(e) {
+  const total = state.rows * state.cols;
+
+  // Nothing selected yet — arrow key starts navigation at the first key
+  if (!state.selectedKey || state.selectedKey.type !== 'key') {
+    e.preventDefault();
+    selectKey('key', 0);
+    return;
+  }
+
+  const current = state.selectedKey.id;
+  let next = current;
+
+  switch (e.key) {
+    case 'ArrowRight':
+      if ((current % state.cols) < state.cols - 1 && current + 1 < total) next = current + 1;
+      break;
+    case 'ArrowLeft':
+      if ((current % state.cols) > 0) next = current - 1;
+      break;
+    case 'ArrowDown':
+      if (current + state.cols < total) next = current + state.cols;
+      break;
+    case 'ArrowUp':
+      if (current - state.cols >= 0) next = current - state.cols;
+      break;
+    default:
+      return;
+  }
+
+  e.preventDefault();
+  if (next !== current) selectKey('key', next);
+}
 
 // ═══════════════════════════════════════════
 //  INIT WITH EXAMPLE DATA
@@ -1125,12 +1183,21 @@ function renderStats() {
   document.getElementById('stat-keys').textContent = state.rows * state.cols;
 }
 
+let dragSrcLayerIdx = null;
+
 function renderLayerList() {
   const el = document.getElementById('layer-list');
   el.innerHTML = '';
   state.layers.forEach((layer, idx) => {
     const row = document.createElement('div');
     row.className = 'layer-item';
+    row.dataset.layerIdx = idx;
+
+    const handle = document.createElement('span');
+    handle.className = 'layer-drag-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Drag to reorder';
+    handle.draggable = true;
 
     const btn = document.createElement('button');
     btn.textContent = layer.name || `Layer ${idx}`;
@@ -1152,11 +1219,54 @@ function renderLayerList() {
     del.title = 'Delete layer';
     del.onclick = (e) => { e.stopPropagation(); deleteLayer(idx); };
 
+    row.appendChild(handle);
     row.appendChild(btn);
     row.appendChild(dup);
     row.appendChild(del);
     el.appendChild(row);
+
+    // drag to reorder — only the handle initiates drag, but the whole row accepts drops
+    handle.addEventListener('dragstart', e => {
+      dragSrcLayerIdx = idx;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    handle.addEventListener('dragend', () => {
+      dragSrcLayerIdx = null;
+      document.querySelectorAll('.layer-item').forEach(r => r.classList.remove('dragging', 'drag-over'));
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (dragSrcLayerIdx !== null && dragSrcLayerIdx !== idx) row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      if (dragSrcLayerIdx === null || dragSrcLayerIdx === idx) return;
+      reorderLayer(dragSrcLayerIdx, idx);
+    });
   });
+}
+
+function reorderLayer(fromIdx, toIdx) {
+  pushHistory();
+  const [moved] = state.layers.splice(fromIdx, 1);
+  state.layers.splice(toIdx, 0, moved);
+
+  // keep the current-layer pointer following the same layer object
+  if (state.currentLayer === fromIdx) {
+    state.currentLayer = toIdx;
+  } else if (fromIdx < state.currentLayer && toIdx >= state.currentLayer) {
+    state.currentLayer--;
+  } else if (fromIdx > state.currentLayer && toIdx <= state.currentLayer) {
+    state.currentLayer++;
+  }
+
+  state.selectedKey = null;
+  render();
+  setStatus(`Moved layer to position ${toIdx}`);
 }
 
 function renderLayerTabs() {
@@ -1437,6 +1547,12 @@ function selectKey(type, id) {
   const action = type === 'key' ? layer.keys[id] : layer.encoders[id];
   const label = type === 'key' ? `Key #${id}` : id;
   document.getElementById('status-sel').textContent = `${label} · Layer: ${layer.name}`;
+
+  // Keep the newly selected key visible when navigating with arrow keys
+  if (type === 'key') {
+    const el = document.querySelector(`.key-btn[data-key-idx="${id}"]`);
+    if (el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
 
   // Auto-collapse the config panel on desktop to give the grid more room while editing
   const main = document.querySelector('.main');
