@@ -1043,15 +1043,7 @@ function handleArrowNavigation(e) {
   }
 
   e.preventDefault();
-  if (next === current) return;
-
-  if (e.altKey) {
-    // Alt+Arrow: swap the selected key with its neighbor, same as drag&drop
-    swapKeys(current, next);
-    selectKey('key', next); // follow the moved key, matching drag&drop UX
-  } else {
-    selectKey('key', next);
-  }
+  if (next !== current) selectKey('key', next);
 }
 
 // ═══════════════════════════════════════════
