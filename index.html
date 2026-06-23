@@ -18,6 +18,34 @@
   --key-h: 72px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── CUSTOM SCROLLBARS ──
+   NOTE: intentionally NOT using scrollbar-width/scrollbar-color here.
+   Modern Chrome/Edge render those via native UI when present, which
+   silently overrides the ::-webkit-scrollbar-* rules below and forces
+   rounded corners we can't control. Webkit pseudo-elements alone give
+   full control over the square shape. */
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+*::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--line-bright);
+  background-clip: padding-box;
+  border: 3px solid var(--bg);
+  border-radius: 0px;
+  box-shadow: none;
+  -webkit-border-radius: 0px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--fg);
+}
+*::-webkit-scrollbar-corner {
+  background: var(--bg);
+}
 body {
   background: var(--bg);
   color: var(--fg);
@@ -71,10 +99,25 @@ body {
 .main.left-collapsed {
   grid-template-columns: 56px 1fr 340px;
 }
-.panel { overflow: auto; padding: 14px; position: relative; }
+.panel { overflow: auto; padding: 14px; position: relative; min-height: 0; }
 
 /* ── LEFT PANEL COLLAPSE ── */
-#left-panel { transition: padding .18s ease; padding-right: 28px !important; }
+#left-panel {
+  transition: padding .18s ease;
+  padding: 0 18px 0 0 !important;
+  overflow: visible !important;
+  display: flex;
+  min-height: 0;
+  height: 100%;
+}
+#left-panel .panel-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px;
+  min-width: 0;
+  min-height: 0;
+}
 
 .panel-collapse-rail {
   position: absolute;
@@ -103,8 +146,7 @@ body {
 .panel-collapse-rail:hover .collapse-arrow { color: var(--fg); }
 
 .main.left-collapsed #left-panel {
-  padding: 14px 0 14px 0 !important;
-  overflow: hidden;
+  padding: 0 !important;
 }
 .main.left-collapsed #left-panel .panel-content {
   display: none;
@@ -120,9 +162,9 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  padding-top: 4px;
+  padding: 14px 18px 14px 4px;
   width: 100%;
-  padding-right: 18px;
+  overflow: auto;
 }
 .main.left-collapsed .panel-collapsed-rail { display: flex; }
 .rail-icon-btn {
