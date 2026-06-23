@@ -569,6 +569,23 @@ button.primary:hover { background: var(--fg); color: var(--bg); }
   .panel-collapse-rail { display: none !important; }
   .panel-collapsed-rail { display: none !important; }
 
+  /* #left-panel uses display:flex on desktop (higher specificity than .panel),
+     which breaks mobile tab switching. Force it to respect .mobile-active here. */
+  #left-panel {
+    display: none;
+    padding: 12px !important;
+    overflow: visible !important;
+    height: auto;
+  }
+  #left-panel.mobile-active {
+    display: block !important;
+  }
+  #left-panel .panel-content {
+    display: block !important;
+    overflow: visible;
+    padding: 0;
+  }
+
   /* Header: stack logo + stats */
   .header {
     height: auto;
