@@ -950,7 +950,15 @@ function pasteIntoSelectedAction() {
 
 document.addEventListener('keydown', (e) => {
   const meta = e.ctrlKey || e.metaKey;
-  if (!meta) return;
+
+  if (!meta) {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !isTypingInField(e) && state.selectedKey) {
+      e.preventDefault();
+      clearAction();
+    }
+    return;
+  }
+
   if (e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
   else if ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y') {
     e.preventDefault(); redo();
