@@ -1347,7 +1347,7 @@ function commitLayerName() {
   document.getElementById('layer-name-editor').style.display = 'none';
 }
 
-let dragSrcIdx = null;
+let dragSource = null; // { type: 'key'|'encoder', id: number|string }
 
 function formatShortcut(action) {
   if (!action) return '';
@@ -1389,20 +1389,20 @@ function renderGrid() {
 
     // drag
     btn.addEventListener('dragstart', e => {
-      dragSrcIdx = i;
+      dragSource = { type: 'key', id: i };
       btn.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'copyMove';
     });
     btn.addEventListener('dragend', () => {
-      dragSrcIdx = null;
-      document.querySelectorAll('.key-btn').forEach(b => {
+      dragSource = null;
+      document.querySelectorAll('.key-btn, .encoder-btn').forEach(b => {
         b.classList.remove('dragging', 'drag-over', 'drag-over-copy');
       });
     });
     btn.addEventListener('dragover', e => {
       e.preventDefault();
       e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
-      if (dragSrcIdx !== null && dragSrcIdx !== i) {
+      if (dragSource && !(dragSource.type === 'key' && dragSource.id === i)) {
         btn.classList.toggle('drag-over-copy', e.altKey);
         btn.classList.toggle('drag-over', !e.altKey);
       }
@@ -1411,9 +1411,9 @@ function renderGrid() {
     btn.addEventListener('drop', e => {
       e.preventDefault();
       btn.classList.remove('drag-over', 'drag-over-copy');
-      if (dragSrcIdx === null || dragSrcIdx === i) return;
-      if (e.altKey) copyKeyTo(dragSrcIdx, i);
-      else swapKeys(dragSrcIdx, i);
+      if (!dragSource || (dragSource.type === 'key' && dragSource.id === i)) return;
+      if (e.altKey) copyCross(dragSource, { type: 'key', id: i });
+      else swapCross(dragSource, { type: 'key', id: i });
     });
 
     matrix.appendChild(btn);
@@ -1436,18 +1436,54 @@ function swapKeys(a, b) {
   setStatus(`Swapped key #${a} ↔ #${b}`);
 }
 
-function copyKeyTo(src, dst) {
+function getActionFor(target) {
   const layer = state.layers[state.currentLayer];
-  const action = layer.keys[src];
-  if (!action) { setStatus('Nothing to duplicate — source is empty'); return; }
-  pushHistory();
-  layer.keys[dst] = JSON.parse(JSON.stringify(action));
-  renderGrid();
-  updatePreview();
-  setStatus(`Duplicated key #${src} → #${dst}`);
+  return target.type === 'key' ? layer.keys[target.id] : layer.encoders[target.id];
 }
 
-let dragSrcEncId = null;
+function setActionFor(target, action) {
+  const layer = state.layers[state.currentLayer];
+  if (target.type === 'key') layer.keys[target.id] = action;
+  else layer.encoders[target.id] = action;
+}
+
+function swapCross(src, dst) {
+  pushHistory();
+  const srcAction = getActionFor(src);
+  const dstAction = getActionFor(dst);
+  setActionFor(src, dstAction);
+  setActionFor(dst, srcAction);
+
+  // follow the dragged item to its new slot, same UX as same-type swap
+  if (state.selectedKey) {
+    if (state.selectedKey.type === src.type && state.selectedKey.id === src.id) {
+      state.selectedKey = { type: dst.type, id: dst.id };
+    } else if (state.selectedKey.type === dst.type && state.selectedKey.id === dst.id) {
+      state.selectedKey = { type: src.type, id: src.id };
+    }
+  }
+
+  renderGrid();
+  renderEncoders();
+  updatePreview();
+  if (state.selectedKey) renderActionForm();
+  const srcLabel = src.type === 'key' ? `#${src.id}` : src.id;
+  const dstLabel = dst.type === 'key' ? `#${dst.id}` : dst.id;
+  setStatus(`Swapped ${srcLabel} ↔ ${dstLabel}`);
+}
+
+function copyCross(src, dst) {
+  const srcAction = getActionFor(src);
+  if (!srcAction) { setStatus('Nothing to duplicate — source is empty'); return; }
+  pushHistory();
+  setActionFor(dst, JSON.parse(JSON.stringify(srcAction)));
+  renderGrid();
+  renderEncoders();
+  updatePreview();
+  const srcLabel = src.type === 'key' ? `#${src.id}` : src.id;
+  const dstLabel = dst.type === 'key' ? `#${dst.id}` : dst.id;
+  setStatus(`Duplicated ${srcLabel} → ${dstLabel}`);
+}
 
 function renderEncoders() {
   const layer = state.layers[state.currentLayer];
@@ -1482,20 +1518,20 @@ function renderEncoders() {
 
       // drag
       btn.addEventListener('dragstart', ev => {
-        dragSrcEncId = id;
+        dragSource = { type: 'encoder', id };
         btn.classList.add('dragging');
         ev.dataTransfer.effectAllowed = 'copyMove';
       });
       btn.addEventListener('dragend', () => {
-        dragSrcEncId = null;
-        document.querySelectorAll('.encoder-btn').forEach(b => {
+        dragSource = null;
+        document.querySelectorAll('.key-btn, .encoder-btn').forEach(b => {
           b.classList.remove('dragging', 'drag-over', 'drag-over-copy');
         });
       });
       btn.addEventListener('dragover', ev => {
         ev.preventDefault();
         ev.dataTransfer.dropEffect = ev.altKey ? 'copy' : 'move';
-        if (dragSrcEncId !== null && dragSrcEncId !== id) {
+        if (dragSource && !(dragSource.type === 'encoder' && dragSource.id === id)) {
           btn.classList.toggle('drag-over-copy', ev.altKey);
           btn.classList.toggle('drag-over', !ev.altKey);
         }
@@ -1504,9 +1540,9 @@ function renderEncoders() {
       btn.addEventListener('drop', ev => {
         ev.preventDefault();
         btn.classList.remove('drag-over', 'drag-over-copy');
-        if (dragSrcEncId === null || dragSrcEncId === id) return;
-        if (ev.altKey) copyEncoderTo(dragSrcEncId, id);
-        else swapEncoders(dragSrcEncId, id);
+        if (!dragSource || (dragSource.type === 'encoder' && dragSource.id === id)) return;
+        if (ev.altKey) copyCross(dragSource, { type: 'encoder', id });
+        else swapCross(dragSource, { type: 'encoder', id });
       });
 
       row.appendChild(btn);
